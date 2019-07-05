@@ -12,7 +12,7 @@ from sklearn.datasets.samples_generator import make_blobs
 # StratifiedKFold makes sure the fold has an equal representation of the classes
 from sklearn.model_selection import KFold
 
-from custom_functions.cv_functions import (PdDataFrameTypeError, idx_func,
+from custom_functions.cv_functions import (PdDataFrameTypeError, NpArrayShapeError, idx_func,
                                            longitudinal_cv_xy_array,
                                            lstm_train_eval)
 from custom_functions.data_processing import training_test_spliter
@@ -50,6 +50,19 @@ def lstm_cv(input, Y_colnames, remove_colnames, n_features,
     return None
 
 
+def lstm_member_eval(models, n_numbers, testX, testY):
+    """
+    # Purpose:
+        The function evaluates a subset of models from the CV model ensemble
+
+    # Arguments:
+        models: list. CV model ensemble
+        n_numbers: int. The first n number of models
+    """
+
+    return None
+
+
 def lstm_ensemble_predict(models, testX):
     """
     # Purpose:
@@ -62,8 +75,17 @@ def lstm_ensemble_predict(models, testX):
     # argument check
     if not isinstance(testX, np.array):
         raise TypeError("testX needs to be a numpy array.")
+    if not len(testX.shape) == 3:
+        raise NpArrayShapeError("testX needs to be in 3D shape.")
 
-    return None
+    # testX
+    yhats = [m.predict(testX) for m in models]
+    yhats = np.array(yhats)
+
+    # argmax the results
+    result = np.argmax(yhats)
+
+    return result
 
 
 # ------ script ------
@@ -105,4 +127,4 @@ cv_m, cv_m_history, cv_test_rmse = lstm_train_eval(trainX=cv_train_X, trainY=cv_
                                                    plot=True, filepath=os.path.join(res_dir, 'cv_simple_loss.pdf'),
                                                    plot_title='Simple LSTM model',
                                                    ylabel='MSE',
-                                                   verbose=True)
+                                                   verbose=False)
