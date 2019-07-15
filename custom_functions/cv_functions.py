@@ -10,6 +10,7 @@ import pandas as pd
 # StratifiedKFold should be used for classification problems
 # StratifiedKFold makes sure the fold has an equal representation of the classes
 from sklearn.model_selection import KFold
+from keras.utils import to_categorical
 
 from custom_functions.lstm_functions import (bidirectional_lstm_m,
                                              simple_lstm_m, stacked_lstm_m)
@@ -26,14 +27,15 @@ class NpArrayShapeError(TypeError):
 
 
 def lstm_train_eval(trainX, trainY, testX, testY,
-                    lstm_model='simple', model_mode='n_to_one', hidden_units=50,
+                    lstm_model='simple', study_type='n_to_one', outcome_type='regression',
+                    hidden_units=50,
                     epochs=200, batch_size=16,
                     loss='mean_squared_error',
                     optimizer='adam',
                     plot=False, verbose=False, **kwargs):
     """
     # Purpose:
-        This is the warper function for LSTM model training and evaluating.
+        This is the wraper function for LSTM model training and evaluating.
 
     # Argument:
         trainX: numpy ndarray for training X. shape requirment: n_samples x n_timepoints x n_features.
@@ -41,7 +43,8 @@ def lstm_train_eval(trainX, trainY, testX, testY,
         testX: numpy ndarray for test X. shape requirment: n_samples x n_timepoints x n_features.
         testY: numpy ndarray for test Y. shape requirement: n_samples.
         lstm_model: string. the type of LSTM model to use.
-        model_model: string. the type of study.
+        study_type: string. the type of study, 'n_to_one' or 'n_to_n'. More to be added.
+        outcome_type: string. the type of the outcome, 'regression' or 'classification'.
         hidden_units: int. number of hidden units in the first layer.
         epochs: int. number of epochs to use for LSTM modelling.
         batch_size: int. batch size for each modelling iteration.
@@ -57,6 +60,7 @@ def lstm_train_eval(trainX, trainY, testX, testY,
     # Details:
         This function trains and evaluates single LSTM model. Thus, the function is used as an
         intermediate functioin for evaluting ensemble models from k-fold CV.
+        NOTE: the function might not work for classification: TO BE TESTED
     """
     # argument check
     if not all(isinstance(input, np.ndarray) for input in [trainX, trainY, testX, testY]):
@@ -71,8 +75,14 @@ def lstm_train_eval(trainX, trainY, testX, testY,
     # training_n_samples, test_n_samples = trainX.shape[0], testX.shape[0]
     n_timepoints, n_features = trainX.shape[1], trainX.shape[2]
 
+    # y data processing
+    # this might not work: TO BE TESTED
+    if outcome_type == 'classification':
+        trainY = to_categorical(trainY)
+
     # modelling
-    if model_mode == 'n_to_one':
+    # this might not work for classification studies: TO BE TESTED
+    if study_type == 'n_to_one':
         if lstm_model == 'simple':
             m = simple_lstm_m(n_steps=n_timepoints, n_features=n_features,
                               hidden_units=hidden_units, n_output=1,
@@ -94,12 +104,12 @@ def lstm_train_eval(trainX, trainY, testX, testY,
     # evaluating
     # NOTE: below: regressional study only outputs loss (usually MSE), no accuracy
     # NOTE: for classification, the evaluate function returns both loss and accurarcy
-    if loss == 'mean_squared_error':
+    if outcome_type == 'regression':
         # only returns mse for regression
         eval_res = m.evaluate(testX, testY, verbose=verbose)
         eval_res = math.sqrt(eval_res)  # rmse
     else:
-        # loss, acc. we capture acc
+        # below returns loss and acc. we only capture acc
         _, eval_res = m.evaluate(testX, testY, verbose=verbose)
 
     # return
