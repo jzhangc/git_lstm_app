@@ -8,13 +8,13 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from sklearn.datasets.samples_generator import make_blobs
-from sklearn.metrics import mean_squared_error, accuracy_score
+from sklearn.metrics import accuracy_score, mean_squared_error
 # StratifiedKFold should be used for classification problems
 # StratifiedKFold makes sure the fold has an equal representation of the classes
 from sklearn.model_selection import KFold
-from keras.utils import to_categorical
 
-from custom_functions.cv_functions import (PdDataFrameTypeError, NpArrayShapeError, idx_func,
+from custom_functions.cv_functions import (NpArrayShapeError,
+                                           PdDataFrameTypeError, idx_func,
                                            longitudinal_cv_xy_array,
                                            lstm_train_eval)
 from custom_functions.data_processing import training_test_spliter
@@ -97,6 +97,20 @@ def lstm_ensemble_predict(models, testX, outcome_type='regression'):
         For model_type='classification', instead of returning the prediction from each model used, 
         the function calculates the sum of yhat and returns the indices of the max sum value using
         np.argmax function. 
+            The reason: the classification modelling process uses dummification function to_catagorical() 
+            from keras.utils. For multi-class classification, the class code is a length=number of class vector
+            with indices representing the class. 
+
+            For example, a four-class pre-dummification code will be "0, 1, 2, 3"
+            The dummified codes for each class will be:
+            0: 1,0,0,0
+            1: 0,1,0,0
+            2: 0,0,1,0
+            3: 0,0,0,1   
+
+            The value range of the dummified class is 0~1. So for yhat, the index with the largest 
+            value would be considered "1". Therefore, using np.argmax will return the index (0~3)
+            with the max value, which is precisely the column index id for the classes.
 
         Regarding axis values used by the numpy indexing for the some functions using 'axis=' argument,
         'axis=0' means "along row, or by column", and 'axis=1' means "along column, or by row".
@@ -208,17 +222,3 @@ sum.shape
 sum[0, :]
 result = np.argmax(sum, axis=1)  # how does this work??
 sum[result]
-
-
-dataX, datay = make_blobs(n_samples=55000, centers=3,
-                          n_features=2, cluster_std=2, random_state=2)
-X, newX = dataX[:5000, :], dataX[5000:, :]
-y, newy = datay[:5000], datay[5000:]
-
-
-dataX.shape
-datay.shape
-
-testy = to_categorical(y)
-testy.shape
-y.shape
