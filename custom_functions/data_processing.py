@@ -18,16 +18,16 @@ from matplotlib import pyplot as plt  # to plot ROC-AUC
 def training_test_spliter(data, training_percent=0.8, random_state=None,
                           min_max_scaling=False, scale_column_as_y=None, scale_column_to_exclude=None, scale_range=(0, 1)):
     """
-    Purpose:
+    # Purpose:
         This funciton takes an pandas DataFrame, randomly resamples the data and
         split it into trianing and test data sets.
         The function includes a Min-Max scaling functionality, separately for Y and X.
 
-    Return:
+    # Return:
         Pandas DataFrame (for now) for training and test data.
         The X and Y scalers are also returned
 
-    Arguments:
+    # Arguments:
         data: input data
         training_percent: percentage of the full data to be the training
         random_state: seed for resampling RNG
@@ -63,3 +63,31 @@ def training_test_spliter(data, training_percent=0.8, random_state=None,
     training = data.sample(frac=training_percent, random_state=random_state)
     test = data.iloc[~data.index.isin(training.index), :]
     return training, test, scaler_X, scaler_Y
+
+
+def inverse_norm_y(training_y, test_y, scaler):
+    """
+    # Purpose:
+        This function inverses the min-max normalized y values
+
+    # Return:
+        Training and test data inverse-transformed, in numpy array format
+
+    # Details:
+        The length of the input scaler is the combination of the input data, 
+        e.g. training_y and test_y
+
+    # Arguments:
+        training_y: input training y data. 
+        test_y: input test y data
+        scaler: the scaler that used for the min-max normalization, produced long with the data through
+                function training_test_spliter()
+
+    NOTE: if not already , the data will be converted to a numpy array
+    """
+    dat = np.concatenate([np.array(training_y), np.array(test_y)])
+    dat = scaler.inverse_transform(dat.reshape(dat.shape[0], 1))
+    dat = dat.reshape(dat.shape[0], )
+    training_y_out = dat[0:training_y.shape[0]]
+    test_y_out = dat[training_y.shape[0]:]
+    return training_y_out, test_y_out

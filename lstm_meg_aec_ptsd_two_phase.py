@@ -13,7 +13,8 @@ from keras.callbacks import Callback, ModelCheckpoint
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
 
-from custom_functions.data_processing import training_test_spliter
+from custom_functions.data_processing import (inverse_norm_y,
+                                              training_test_spliter)
 from custom_functions.lstm_functions import (bidirectional_lstm_m,
                                              encoder_decoder_lstm_m,
                                              simple_lstm_m, stacked_lstm_m)
@@ -32,33 +33,6 @@ np.random.seed(2)
 
 
 # ------ custom functions ------
-def inverse_norm_y(training_y, test_y, scaler):
-    """
-    Purpose:
-        This function inverses the min-max normalized y values
-
-    Return:
-        Training and test data inverse-transformed, in numpy array format
-
-    Details:
-        The length of the input scaler is the combination of the input data, 
-        e.g. training_y and test_y
-
-    Arguments:
-        training_y: input training y data. 
-        test_y: input test y data
-        scaler: the scaler that used for the min-max normalization
-
-    NOTE: if not already , the data will be converted to a numpy array
-    """
-    dat = np.concatenate([np.array(training_y), np.array(test_y)])
-    dat = scaler.inverse_transform(dat.reshape(dat.shape[0], 1))
-    dat = dat.reshape(dat.shape[0], )
-    training_y_out = dat[0:training_y.shape[0]]
-    test_y_out = dat[training_y.shape[0]:]
-    return training_y_out, test_y_out
-
-
 # ------ script ------
 # ---- working directory
 main_dir = os.path.abspath('./')

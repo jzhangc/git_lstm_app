@@ -17,7 +17,8 @@ from custom_functions.cv_functions import (NpArrayShapeError,
                                            PdDataFrameTypeError, idx_func,
                                            longitudinal_cv_xy_array,
                                            lstm_train_eval)
-from custom_functions.data_processing import training_test_spliter
+from custom_functions.data_processing import (inverse_norm_y,
+                                              training_test_spliter)
 from custom_functions.util_functions import logging_func
 
 
@@ -26,10 +27,10 @@ def lstm_cv(input, Y_colnames, remove_colnames, n_features,
             cv_n_folds=10,  cv_random_state=None,
             lstm_mode="simple"):
     """
-    Purpose:
+    # Purpose:
         This is the main function for k-fold cross validation for LSTM RNN
 
-    Arguments:
+    # Arguments:
         input
         Y_colnames
         remove_colnames
@@ -37,7 +38,7 @@ def lstm_cv(input, Y_colnames, remove_colnames, n_features,
         cv_random_state
         lstm_mode
 
-    Return
+    # Return
     An ensemble of LSTM RNN models that can be used for ensemble prediction
     """
     # arugment checks
@@ -158,6 +159,12 @@ training, test, scaler_X, scaler_Y = training_test_spliter(
     scale_column_as_y=['PCL'],
     scale_column_to_exclude=['subject', 'PCL', 'group'])
 
+trainingX, trainingY = longitudinal_cv_xy_array(input=training, Y_colnames=['PCL'],
+                                                remove_colnames=['subject', 'group'], n_features=8)
+testX, testY = longitudinal_cv_xy_array(input=test, Y_colnames=['PCL'],
+                                        remove_colnames=['subject', 'group'], n_features=8)
+
+
 # ---- test k-fold data sampling
 n_folds = 10
 X, Y, cv_train_idx, cv_test_idx = idx_func(input=training, n_features=8, Y_colnames=['PCL'],
@@ -174,7 +181,7 @@ cv_test_X, cv_test_Y = X[cv_test_idx[0]], Y[cv_test_idx[0]]
 cv_m_ensemble, cv_m_history_ensemble, cv_m_test_rmse_ensemble = list(), list(), list()
 for i in range(n_folds):
     fold_id = str(i+1)
-    print('fold: ', fold_id, '\n')
+    print('fold: ', fold_id)
     cv_train_X, cv_train_Y = X[cv_train_idx[i]], Y[cv_train_idx[i]]
     cv_test_X, cv_test_Y = X[cv_test_idx[i]], Y[cv_test_idx[i]]
     cv_m, cv_m_history, cv_m_test_rmse = lstm_train_eval(trainX=cv_train_X, trainY=cv_train_Y,
@@ -188,7 +195,6 @@ for i in range(n_folds):
     cv_m_ensemble.append(cv_m)
     cv_m_history_ensemble.append(cv_m_history)
     cv_m_test_rmse_ensemble.append(cv_m_test_rmse)
-
 
 np.std(cv_m_test_rmse_ensemble)
 np.mean(cv_m_test_rmse_ensemble)
