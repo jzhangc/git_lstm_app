@@ -7,10 +7,11 @@ import math
 
 import numpy as np
 import pandas as pd
+from keras.utils import to_categorical
+from sklearn.metrics import accuracy_score, mean_squared_error
 # StratifiedKFold should be used for classification problems
 # StratifiedKFold makes sure the fold has an equal representation of the classes
 from sklearn.model_selection import KFold
-from keras.utils import to_categorical
 
 from custom_functions.lstm_functions import (bidirectional_lstm_m,
                                              simple_lstm_m, stacked_lstm_m)
@@ -26,13 +27,103 @@ class NpArrayShapeError(TypeError):
     pass
 
 
-def lstm_train_eval(trainX, trainY, testX, testY,
-                    lstm_model='simple', study_type='n_to_one', outcome_type='regression',
-                    hidden_units=50,
-                    epochs=200, batch_size=16,
-                    loss='mean_squared_error',
-                    optimizer='adam',
-                    plot=False, verbose=False, **kwargs):
+def lstm_member_eval(models, n_numbers, testX, testY, outcome_type='regression'):
+    """
+    # Purpose:
+        The function evaluates a subset of models from the CV model ensemble
+
+    # Arguments:
+        models: list. CV model ensemble
+        n_numbers: int. The first n number of models
+        outcome_type: string. The outcome type of the study, 'regression' or 'classification'
+
+    # Return
+        The function returns a list RMSE values for regression study, or accuracy for classification
+        study.
+
+        The length of the list will be the number of the models in the model ensemble
+    """
+    # subsetting model ensemble
+    subset = models[:n_numbers]
+
+    # prediction
+    yhats = lstm_ensemble_predict(models=subset, testX=testX)
+
+    # calculate acc or rmse
+    if outcome_type == 'regression':
+        res = math.sqrt(mean_squared_error(y_true=testY, y_pred=yhats))
+    else:
+        res = accuracy_score(y_true=testY, y_pred=yhats)
+
+    return res
+
+
+def lstm_ensemble_predict(models, testX, outcome_type='regression'):
+    """
+    # Purpose:
+        Make predictions using an ensemble of lstm models.
+
+    # Arguments:
+        models: list. a list of lstm models
+        testX: np.ndarray. test X. Needs to be a numpy ndarray object.
+        outcome_type: string. the outcome type of the study, 'regression' or 'classification'
+
+    # Reture:
+        Indices to the max value of the sum of yhats.
+
+    # Details:
+        The function uses the models from the LSTM model ensemble (from k-fold CV process)
+        to predict using input data X.
+
+        For model_type='classification', instead of returning the prediction from each model used, 
+        the function calculates the sum of yhat and returns the indices of the max sum value using
+        np.argmax function. 
+            The reason: the classification modelling process uses dummification function to_catagorical() 
+            from keras.utils. For multi-class classification, the class code is a length=number of class vector
+            with indices representing the class. 
+
+            For example, a four-class pre-dummification code will be "0, 1, 2, 3"
+            The dummified codes for each class will be:
+            0: 1,0,0,0
+            1: 0,1,0,0
+            2: 0,0,1,0
+            3: 0,0,0,1   
+
+            The value range of the dummified class is 0~1. So for yhat, the index with the largest 
+            value would be considered "1". Therefore, using np.argmax will return the index (0~3)
+            with the max value, which is precisely the column index id for the classes.
+
+        Regarding axis values used by the numpy indexing for the some functions using 'axis=' argument,
+        'axis=0' means "along row, or by column", and 'axis=1' means "along column, or by row".
+    """
+    # argument check
+    if not isinstance(testX, np.ndarray):
+        raise TypeError("testX needs to be a numpy array.")
+    if not len(testX.shape) == 3:
+        raise NpArrayShapeError("testX needs to be in 3D shape.")
+
+    # testX
+    yhats = [m.predict(testX) for m in models]
+    yhats = np.array(yhats)
+
+    if outcome_type == 'regression':
+        result = yhats
+    else:
+        # sum
+        sum = np.sum(yhats, axis=0)
+        # argmax the results
+        result = np.argmax(sum, axis=1)
+
+    return result
+
+
+def lstm_cv_train_eval(trainX, trainY, testX, testY,
+                       lstm_model='simple', study_type='n_to_one', outcome_type='regression',
+                       hidden_units=50,
+                       epochs=200, batch_size=16,
+                       loss='mean_squared_error',
+                       optimizer='adam',
+                       plot=False, verbose=False, **kwargs):
     """
     # Purpose:
         This is the wraper function for LSTM model training and evaluating.

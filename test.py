@@ -16,7 +16,8 @@ from sklearn.model_selection import KFold
 from custom_functions.cv_functions import (NpArrayShapeError,
                                            PdDataFrameTypeError, idx_func,
                                            longitudinal_cv_xy_array,
-                                           lstm_train_eval)
+                                           lstm_ensemble_predict,
+                                           lstm_member_eval, lstm_cv_train_eval)
 from custom_functions.data_processing import (inverse_norm_y,
                                               training_test_spliter)
 from custom_functions.util_functions import logging_func
@@ -53,90 +54,6 @@ def lstm_cv(input, Y_colnames, remove_colnames, n_features,
     return None
 
 
-def lstm_member_eval(models, n_numbers, testX, testY, outcome_type='regression'):
-    """
-    # Purpose:
-        The function evaluates a subset of models from the CV model ensemble
-
-    # Arguments:
-        models: list. CV model ensemble
-        n_numbers: int. The first n number of models
-        outcome_type: string. The outcome type of the study, 'regression' or 'classification'
-    """
-    # subsetting model ensemble
-    subset = models[:n_numbers]
-
-    # prediction
-    yhats = lstm_ensemble_predict(models=subset, testX=testX)
-
-    # calculate acc or rmse
-    if outcome_type == 'regression':
-        res = math.sqrt(mean_squared_error(y_true=testY, y_pred=yhats))
-    else:
-        res = accuracy_score(y_true=testY, y_pred=yhats)
-
-    return res
-
-
-def lstm_ensemble_predict(models, testX, outcome_type='regression'):
-    """
-    # Purpose:
-        Make predictions using an ensemble of lstm models.
-
-    # Arguments:
-        models: list. a list of lstm models
-        testX: np.ndarray. test X. Needs to be a numpy ndarray object.
-        outcome_type: string. the outcome type of the study, 'regression' or 'classification'
-
-    # Reture:
-        Indices to the max value of the sum of yhats.
-
-    # Details:
-        The function uses the models from the LSTM model ensemble (from k-fold CV process)
-        to predict using input data X.
-
-        For model_type='classification', instead of returning the prediction from each model used, 
-        the function calculates the sum of yhat and returns the indices of the max sum value using
-        np.argmax function. 
-            The reason: the classification modelling process uses dummification function to_catagorical() 
-            from keras.utils. For multi-class classification, the class code is a length=number of class vector
-            with indices representing the class. 
-
-            For example, a four-class pre-dummification code will be "0, 1, 2, 3"
-            The dummified codes for each class will be:
-            0: 1,0,0,0
-            1: 0,1,0,0
-            2: 0,0,1,0
-            3: 0,0,0,1   
-
-            The value range of the dummified class is 0~1. So for yhat, the index with the largest 
-            value would be considered "1". Therefore, using np.argmax will return the index (0~3)
-            with the max value, which is precisely the column index id for the classes.
-
-        Regarding axis values used by the numpy indexing for the some functions using 'axis=' argument,
-        'axis=0' means "along row, or by column", and 'axis=1' means "along column, or by row".
-    """
-    # argument check
-    if not isinstance(testX, np.ndarray):
-        raise TypeError("testX needs to be a numpy array.")
-    if not len(testX.shape) == 3:
-        raise NpArrayShapeError("testX needs to be in 3D shape.")
-
-    # testX
-    yhats = [m.predict(testX) for m in models]
-    yhats = np.array(yhats)
-
-    if outcome_type == 'regression':
-        result = yhats
-    else:
-        # sum
-        sum = np.sum(yhats, axis=0)
-        # argmax the results
-        result = np.argmax(sum, axis=1)
-
-    return result
-
-
 # ------ script ------
 # ---- working directory
 main_dir = os.path.abspath('./')
@@ -165,6 +82,9 @@ testX, testY = longitudinal_cv_xy_array(input=test, Y_colnames=['PCL'],
                                         remove_colnames=['subject', 'group'], n_features=8)
 
 
+# below: as an example for converting the normalized Y back to measured values
+# _, testY = inverse_norm_y(training_y=trainingY, test_y=testY, scaler=scaler_Y)
+
 # ---- test k-fold data sampling
 n_folds = 10
 X, Y, cv_train_idx, cv_test_idx = idx_func(input=training, n_features=8, Y_colnames=['PCL'],
@@ -184,47 +104,39 @@ for i in range(n_folds):
     print('fold: ', fold_id)
     cv_train_X, cv_train_Y = X[cv_train_idx[i]], Y[cv_train_idx[i]]
     cv_test_X, cv_test_Y = X[cv_test_idx[i]], Y[cv_test_idx[i]]
-    cv_m, cv_m_history, cv_m_test_rmse = lstm_train_eval(trainX=cv_train_X, trainY=cv_train_Y,
-                                                         testX=cv_test_X, testY=cv_test_Y,
-                                                         lstm_model='simple',
-                                                         hidden_units=6, epochs=400, batch_size=29,
-                                                         plot=False, filepath=os.path.join(res_dir, 'cv_simple_loss_fold_'+fold_id+'.pdf'),
-                                                         plot_title='Simple LSTM model',
-                                                         ylabel='MSE',
-                                                         verbose=False)
+    cv_m, cv_m_history, cv_m_test_rmse = lstm_cv_train_eval(trainX=cv_train_X, trainY=cv_train_Y,
+                                                            testX=cv_test_X, testY=cv_test_Y,
+                                                            lstm_model='simple',
+                                                            hidden_units=6, epochs=400, batch_size=29,
+                                                            plot=False, filepath=os.path.join(res_dir, 'cv_simple_loss_fold_'+fold_id+'.pdf'),
+                                                            plot_title='Simple LSTM model',
+                                                            ylabel='MSE',
+                                                            verbose=False)
     cv_m_ensemble.append(cv_m)
     cv_m_history_ensemble.append(cv_m_history)
     cv_m_test_rmse_ensemble.append(cv_m_test_rmse)
+np.std(cv_m_test_rmse_ensemble)  # 0.135
+np.mean(cv_m_test_rmse_ensemble)  # 0.327
 
-np.std(cv_m_test_rmse_ensemble)
-np.mean(cv_m_test_rmse_ensemble)
-
-
-tst = lstm_ensemble_predict(models=cv_m_ensemble, testX=cv_test_X)
-math.sqrt(mean_squared_error(y_true=cv_test_Y, y_pred=tst))
-
-
+# prediction
 models = cv_m_ensemble
-testX = cv_test_X
-
-cv_test_Y.shape
-cv_test_X.shape
-
-cv_test_X[2, :, :]
-
-# testX
 yhats = [m.predict(testX) for m in models]
 yhats = np.array(yhats)
+yhats_mean = np.mean(yhats, axis=0)
+yhats_std = np.std(yhats, axis=0)
 
-yhats.shape  # 10, 3, 1
+_, yhats_pred = inverse_norm_y(
+    training_y=trainingY, test_y=yhats_mean, scaler=scaler_Y)
+_, yhats_std = inverse_norm_y(
+    training_y=trainingY, test_y=yhats_std, scaler=scaler_Y)
+_, testY_conv = inverse_norm_y(training_y=trainingY,
+                               test_y=testY, scaler=scaler_Y)
 
-# sum
-sum = np.sum(yhats, axis=0)
-yhats[0, :, :]
 
-
-# argmax the results
-sum.shape
-sum[0, :]
-result = np.argmax(sum, axis=1)  # how does this work??
-sum[result]
+test_rmse = list()
+for yhat in yhats:
+    rmse = math.sqrt(mean_squared_error(y_true=testY, y_pred=yhat))
+    test_rmse.append(rmse)
+test_rmse = np.array(test_rmse)
+np.std(test_rmse)  # 0.047
+np.mean(test_rmse)  # 0.363
