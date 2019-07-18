@@ -27,14 +27,14 @@ class NpArrayShapeError(TypeError):
     pass
 
 
-def lstm_member_eval(models, n_numbers, testX, testY, outcome_type='regression'):
+def lstm_ensemble_eval(models, n_members, testX, testY, outcome_type='regression'):
     """
     # Purpose:
         The function evaluates a subset of models from the CV model ensemble
 
     # Arguments:
         models: list. CV model ensemble
-        n_numbers: int. The first n number of models
+        n_members: int. The first n number of models
         outcome_type: string. The outcome type of the study, 'regression' or 'classification'
 
     # Return
@@ -44,40 +44,47 @@ def lstm_member_eval(models, n_numbers, testX, testY, outcome_type='regression')
         The length of the list will be the number of the models in the model ensemble
     """
     # subsetting model ensemble
-    subset = models[:n_numbers]
+    subset = models[:n_members]
 
     # prediction
-    yhats = lstm_ensemble_predict(models=subset, testX=testX)
+    yhats = lstm_ensemble_predict(
+        models=subset, n_members=len(subset), testX=testX)
 
     # calculate acc or rmse
     if outcome_type == 'regression':
-        res = math.sqrt(mean_squared_error(y_true=testY, y_pred=yhats))
+        res = [math.sqrt(mean_squared_error(y_true=testY, y_pred=yhat))
+               for yhat in yhats]
     else:
         res = accuracy_score(y_true=testY, y_pred=yhats)
 
     return res
 
 
-def lstm_ensemble_predict(models, testX, outcome_type='regression'):
+def lstm_ensemble_predict(models, n_members, testX, outcome_type='regression'):
     """
     # Purpose:
         Make predictions using an ensemble of lstm models.
 
     # Arguments:
         models: list. a list of lstm models
+        n_members: int. The first n number of models
         testX: np.ndarray. test X. Needs to be a numpy ndarray object.
         outcome_type: string. the outcome type of the study, 'regression' or 'classification'
 
     # Reture:
-        Indices to the max value of the sum of yhats.
+        The function returns yhats from the ensemble models. 
 
     # Details:
         The function uses the models from the LSTM model ensemble (from k-fold CV process)
         to predict using input data X.
 
-        For model_type='classification', instead of returning the prediction from each model used, 
-        the function calculates the sum of yhat and returns the indices of the max sum value using
-        np.argmax function. 
+        For model_type='regression', the output is a list fo RMSE values. The length of the list is
+        n_members.
+
+        For model_type='classification', the functio n returns the class prediction (a numpy array) 
+        drawn from the predictions from all the models from the ensemble. 
+        Instead of returning the prediction from each model used, the function calculates the sum 
+        of yhat and returns the indices of the max sum value using np.argmax function. 
             The reason: the classification modelling process uses dummification function to_catagorical() 
             from keras.utils. For multi-class classification, the class code is a length=number of class vector
             with indices representing the class. 
@@ -103,7 +110,8 @@ def lstm_ensemble_predict(models, testX, outcome_type='regression'):
         raise NpArrayShapeError("testX needs to be in 3D shape.")
 
     # testX
-    yhats = [m.predict(testX) for m in models]
+    active_models = models[:n_members]
+    yhats = [m.predict(testX) for m in active_models]
     yhats = np.array(yhats)
 
     if outcome_type == 'regression':

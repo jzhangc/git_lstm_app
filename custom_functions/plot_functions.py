@@ -1,5 +1,6 @@
 """
-Plot functions
+Plot functions: all functions wil be updated with ggplot2-like matplotlib
+syntax in the future.
 """
 # ------ libraries ------
 import pandas as pd
@@ -57,18 +58,37 @@ def epochs_loss_plot(filepath, model_history, plot_title=None, ylabel='loss'):  
     return None
 
 
-def y_yhat_plot(filepath, y, training_yhat, test_yhat, plot_title=None, xlabel=None, ylabel=None, plot_type='bar',
+def y_yhat_plot(filepath, y_true, training_yhat, test_yhat, plot_title=None, xlabel=None, ylabel=None, plot_type='bar',
                 plot_style='dark_background', bar_width=0.25):
     """
-    This function plots original outcome (y),
-    training predicted y and test predicted y.
+    # Purpose:
+        This function plots original outcome (y), training predicted y and test predicted y.
+        Mainly useful for regression study.
 
-    The function fills NaNs to teh training and test yhat arrays to match the length of y
-    for positioning
+    # Arguments:
+        filepath: string. The export directiory. 
+        y_true: np.ndarray. Input y true values, including both training and test data.
+        training_yhat: np.ndarray. Input yhat data for training set y.
+        test_yhat: np.ndarray. Iput yhat data for test set y.
+        plot_title: string. Title displayed on top of the figure.
+        xlabel: string. Label for x-axis. 
+        ylabel: string. Label for y-axis.
+        plot_tyle: string. The figure style setting, 'classic' or 'dark_background'.
 
-    Mainly useful for regression study
+    # Return:
+        A figure file saved to the set diretiory.
+
+    # Details:
+        The plotting library is matplotlib.
+
+        The function fills NaNs to teh training and test yhat arrays to match the length of y
+        for positioning
+
     """
+    # check arguments
+
     # set up data
+    y = y_true
     x = np.arange(1, len(y)+1)
 
     training_y_hat_plot = np.empty_like(y)

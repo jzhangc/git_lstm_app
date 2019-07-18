@@ -3,7 +3,6 @@ to test small things
 """
 import math
 import os
-
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -17,13 +16,15 @@ from custom_functions.cv_functions import (NpArrayShapeError,
                                            PdDataFrameTypeError, idx_func,
                                            longitudinal_cv_xy_array,
                                            lstm_ensemble_predict,
-                                           lstm_member_eval, lstm_cv_train_eval)
+                                           lstm_ensemble_eval, lstm_cv_train_eval)
 from custom_functions.data_processing import (inverse_norm_y,
                                               training_test_spliter)
 from custom_functions.util_functions import logging_func
+from custom_functions.plot_functions import y_yhat_plot
 
 
 # ------ test functions ------
+# NOTE: this should be a custom class
 def lstm_cv(input, Y_colnames, remove_colnames, n_features,
             cv_n_folds=10,  cv_random_state=None,
             lstm_mode="simple"):
@@ -40,7 +41,7 @@ def lstm_cv(input, Y_colnames, remove_colnames, n_features,
         lstm_mode
 
     # Return
-    An ensemble of LSTM RNN models that can be used for ensemble prediction
+        An ensemble of LSTM RNN models that can be used for ensemble prediction
     """
     # arugment checks
     if not isinstance(input, pd.DataFrame):
@@ -69,6 +70,8 @@ logger = logging_func(filepath=os.path.join(
 raw = pd.read_csv(os.path.join(
     dat_dir, 'lstm_aec_phases_freq1.csv'), engine='python')
 raw.iloc[0:5, 0:5]
+y = np.array(raw.loc[:, 'PCL'])
+y = y.astype(float)
 
 # ---- generate training and test sets with min-max normalization
 training, test, scaler_X, scaler_Y = training_test_spliter(
@@ -115,28 +118,42 @@ for i in range(n_folds):
     cv_m_ensemble.append(cv_m)
     cv_m_history_ensemble.append(cv_m_history)
     cv_m_test_rmse_ensemble.append(cv_m_test_rmse)
-np.std(cv_m_test_rmse_ensemble)  # 0.135
-np.mean(cv_m_test_rmse_ensemble)  # 0.327
+np.std(cv_m_test_rmse_ensemble)  # 0.128
+np.mean(cv_m_test_rmse_ensemble)  # 0.326
 
 # prediction
-models = cv_m_ensemble
-yhats = [m.predict(testX) for m in models]
-yhats = np.array(yhats)
-yhats_mean = np.mean(yhats, axis=0)
-yhats_std = np.std(yhats, axis=0)
+yhats_testX = lstm_ensemble_predict(
+    models=cv_m_ensemble, n_members=len(cv_m_ensemble), testX=testX)
+# below: anix=0 means "along the row, by column"
+yhats_testX_mean = np.mean(yhats_testX, axis=0)
+yhats_testX_std = np.std(yhats_testX, axis=0)
+yhats_testX_sem = yhats_testX_std/math.sqrt(n_folds)
 
-_, yhats_pred = inverse_norm_y(
-    training_y=trainingY, test_y=yhats_mean, scaler=scaler_Y)
-_, yhats_std = inverse_norm_y(
-    training_y=trainingY, test_y=yhats_std, scaler=scaler_Y)
-_, testY_conv = inverse_norm_y(training_y=trainingY,
-                               test_y=testY, scaler=scaler_Y)
+yhats_trainingX = lstm_ensemble_predict(
+    models=cv_m_ensemble, n_members=len(cv_m_ensemble), testX=trainingX)
+yhats_trainingX_mean = np.mean(yhats_trainingX, axis=0)
+yhats_trainingX_std = np.std(yhats_trainingX, axis=0)
+yhats_trainingX_sem = yhats_trainingX_std/math.sqrt(n_folds)
+
+yhats_trainingX_pred, yhats_testX_pred = inverse_norm_y(
+    training_y=yhats_trainingX_mean, test_y=yhats_testX_mean, scaler=scaler_Y)
+yhats_trainingX_std, yhats_testX_std = inverse_norm_y(
+    training_y=yhats_trainingX_std, test_y=yhats_testX_std, scaler=scaler_Y)
+yhats_trainingX_sem, yhats_testX_sem = inverse_norm_y(
+    training_y=yhats_trainingX_sem, test_y=yhats_testX_sem, scaler=scaler_Y)
+trainingX_conv, testY_conv = inverse_norm_y(training_y=trainingY,
+                                            test_y=testY, scaler=scaler_Y)
 
 
-test_rmse = list()
-for yhat in yhats:
-    rmse = math.sqrt(mean_squared_error(y_true=testY, y_pred=yhat))
-    test_rmse.append(rmse)
+test_rmse = [math.sqrt(mean_squared_error(y_true=testY, y_pred=yhat))
+             for yhat in yhats_testX]
 test_rmse = np.array(test_rmse)
-np.std(test_rmse)  # 0.047
-np.mean(test_rmse)  # 0.363
+np.std(test_rmse)  # 0.084
+np.mean(test_rmse)  # 0.374
+
+# plot testing
+y_yhat_plot(filepath=os.path.join(res_dir, 'cv_plot_test.pdf'),
+            y_true=y,
+            training_yhat=yhats_trainingX_pred, test_yhat=yhats_testX_pred,
+            plot_title='CV RMSE',
+            ylabel='PCL', xlabel='Subjects', plot_type='bar', plot_style='classic')

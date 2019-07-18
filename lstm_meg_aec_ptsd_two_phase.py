@@ -1,11 +1,10 @@
 """
 LSTM test for MEG AEC connectivity PTSD longitudinal data
 """
-
-import math
 # ------ libraries ------
+import math
 import os
-
+import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -188,7 +187,7 @@ y_plot = y_plot.reshape(y_plot.shape[0], )
 
 # -- plotting
 y_yhat_plot(filepath=os.path.join(res_dir, freq+'_bidir.performance.pdf'),
-            y=y_plot,
+            y_true=y_plot,
             training_yhat=training_y_hat, test_yhat=test_y_hat,
             plot_title='Bidirectional LSTM model prediction plot',
             ylabel='PCL', xlabel='Subjects', plot_style='classic')
@@ -197,7 +196,7 @@ y_yhat_plot(filepath=os.path.join(res_dir, freq+'_bidir.performance.pdf'),
 training_y_hat = training_y_hat.reshape(training_y_hat.shape[0], )
 test_y_hat = test_y_hat.reshape(test_y_hat.shape[0], )
 y_yhat_plot(filepath=os.path.join(res_dir, freq+'_enc-dec.performance.pdf'),
-            y=y_plot,
+            y_true=y_plot,
             training_yhat=training_y_hat, test_yhat=test_y_hat,
             plot_title='Encoder-Decoder LSTM model prediction plot',
             ylabel='PCL', xlabel='Subjects', plot_type='bar', plot_style='classic')
