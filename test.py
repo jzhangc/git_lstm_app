@@ -181,7 +181,6 @@ plot_title = 'CV RMSE'
 ylabel = 'PCL'
 xlabel = 'Subjects'
 plot_type = 'bar'
-plot_style = 'classic'
 bar_width = 0.25
 
 y = y_true

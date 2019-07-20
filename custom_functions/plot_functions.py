@@ -84,7 +84,6 @@ def y_yhat_plot(filepath, y_true,
         xlabel_lim: two tuple or list. Limits for x-axis.
         ylabel: string. Label for y-axis.
         plot_type: string. Plot stype, either 'bar' or 'scatter'
-        plot_tyle: string. The figure style setting, 'classic' or 'dark_background'.
         figure_size: two tuple or list. Figure size.
 
     # Return:
