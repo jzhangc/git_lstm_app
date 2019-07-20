@@ -3,6 +3,7 @@ to test small things
 """
 import math
 import os
+
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -15,12 +16,13 @@ from sklearn.model_selection import KFold
 from custom_functions.cv_functions import (NpArrayShapeError,
                                            PdDataFrameTypeError, idx_func,
                                            longitudinal_cv_xy_array,
-                                           lstm_ensemble_predict,
-                                           lstm_ensemble_eval, lstm_cv_train_eval)
+                                           lstm_cv_train_eval,
+                                           lstm_ensemble_eval,
+                                           lstm_ensemble_predict)
 from custom_functions.data_processing import (inverse_norm_y,
                                               training_test_spliter)
-from custom_functions.util_functions import logging_func
 from custom_functions.plot_functions import y_yhat_plot
+from custom_functions.util_functions import logging_func
 
 
 # ------ test functions ------
@@ -71,7 +73,6 @@ raw = pd.read_csv(os.path.join(
     dat_dir, 'lstm_aec_phases_freq1.csv'), engine='python')
 raw.iloc[0:5, 0:5]
 y = np.array(raw.loc[:, 'PCL'])
-y = y.astype(float)
 
 # ---- generate training and test sets with min-max normalization
 training, test, scaler_X, scaler_Y = training_test_spliter(
@@ -118,8 +119,8 @@ for i in range(n_folds):
     cv_m_ensemble.append(cv_m)
     cv_m_history_ensemble.append(cv_m_history)
     cv_m_test_rmse_ensemble.append(cv_m_test_rmse)
-np.std(cv_m_test_rmse_ensemble)  # 0.128
-np.mean(cv_m_test_rmse_ensemble)  # 0.326
+np.std(cv_m_test_rmse_ensemble)  # 0.122
+np.mean(cv_m_test_rmse_ensemble)  # 0.318
 
 # prediction
 yhats_testX = lstm_ensemble_predict(
@@ -148,12 +149,90 @@ trainingX_conv, testY_conv = inverse_norm_y(training_y=trainingY,
 test_rmse = [math.sqrt(mean_squared_error(y_true=testY, y_pred=yhat))
              for yhat in yhats_testX]
 test_rmse = np.array(test_rmse)
-np.std(test_rmse)  # 0.084
-np.mean(test_rmse)  # 0.374
+np.std(test_rmse)  # 0.075
+np.mean(test_rmse)  # 0.368
 
 # plot testing
+y = np.concatenate([trainingY, testY])
+y_true = scaler_Y.inverse_transform(y.reshape(y.shape[0], 1))
+y_true = y_true.reshape(y_true.shape[0], )
+
 y_yhat_plot(filepath=os.path.join(res_dir, 'cv_plot_test.pdf'),
-            y_true=y,
-            training_yhat=yhats_trainingX_pred, test_yhat=yhats_testX_pred,
+            y_true=y_true,
+            training_yhat=yhats_trainingX_pred,
+            training_yhat_err=yhats_trainingX_sem,
+            test_yhat=yhats_testX_pred,
+            test_yhat_err=yhats_testX_sem,
             plot_title='CV RMSE',
-            ylabel='PCL', xlabel='Subjects', plot_type='bar', plot_style='classic')
+            ylabel='PCL', xlabel='Subjects', plot_type='scatter',
+            bar_width=0.25)
+
+# ------ test OO syntax for plotting ------
+filepath = os.path.join(res_dir, 'cv_plot_test.pdf')
+y_true = y_true
+training_yhat = yhats_trainingX_pred
+training_yhat_err = yhats_trainingX_sem
+test_yhat = yhats_testX_pred
+test_yhat_err = yhats_testX_sem
+plot_title = 'CV RMSE'
+ylabel = 'PCL'
+xlabel = 'Subjects'
+plot_type = 'bar'
+plot_style = 'classic'
+bar_width = 0.25
+
+y = y_true
+x = np.arange(1, len(y)+1)
+
+# ---- version 1: one plot
+training_yhat_plot, training_yhat_err_plot = np.empty_like(y), np.empty_like(y)
+training_yhat_plot[:, ], training_yhat_err_plot[:, ] = np.nan, np.nan
+training_yhat_plot[0:training_yhat.shape[0],
+                   ], training_yhat_err_plot[0:training_yhat_err.shape[0], ] = training_yhat, training_yhat_err
+
+test_yhat_plot, test_yhat_err_plot = np.empty_like(y), np.empty_like(y)
+test_yhat_plot[:, ], test_yhat_err_plot[:, ] = np.nan, np.nan
+test_yhat_plot[training_yhat.shape[0]:,
+               ], test_yhat_err_plot[training_yhat_err.shape[0]:, ] = test_yhat, test_yhat_err
+
+
+# distance
+r1 = np.arange(1, len(y)+1) - bar_width/2
+r2 = np.arange(1, len(y)+1) + bar_width/2
+r3 = r2
+
+# OO syntax
+fig, ax = plt.subplots(figsize=(9, 3))
+ax.bar(r1, y, width=bar_width, color='red', label='original')
+ax.bar(r2, training_yhat_plot, yerr=training_yhat_err_plot,
+       width=bar_width, color='gray', label='training', ecolor='black', capsize=0)
+ax.bar(r3, test_yhat_plot, yerr=test_yhat_err_plot,
+       width=bar_width, color='blue', label='test', ecolor='black', capsize=0)
+ax.axhline(color='black')
+ax.set_title(plot_title)
+ax.set_xlabel(xlabel, fontsize=10)
+ax.set_ylabel(ylabel, fontsize=10)
+ax.tick_params(axis='both', which='major', labelsize=5)
+ax.set_xlim((0, 33))
+ax.legend(loc='best', ncol=3, fontsize=8)
+fig.savefig(filepath, dpi=600, bbox_inches='tight')
+fig
+
+
+fig, ax = plt.subplots(figsize=(9, 3), facecolor='white')
+ax.spines.set_color('black')
+ax.scatter(x, y, color='red', label='original')
+ax.fill_between(x, training_yhat_plot-training_yhat_err_plot,
+                training_yhat_plot+training_yhat_err_plot, color='gray', alpha=0.2,
+                label='training')
+ax.fill_between(x, test_yhat_plot-test_yhat_err_plot,
+                test_yhat_plot+test_yhat_err_plot, color='blue', alpha=0.2,
+                label='test')
+ax.set_title(plot_title)
+ax.set_xlabel(xlabel, fontsize=10)
+ax.set_ylabel(ylabel, fontsize=10)
+ax.tick_params(axis='both', which='major', labelsize=5)
+ax.set_xlim((0, 33))
+ax.legend(loc='best', ncol=3, fontsize=8)
+fig.savefig(filepath, dpi=600, bbox_inches='tight')
+fig

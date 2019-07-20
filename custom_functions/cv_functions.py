@@ -163,7 +163,7 @@ def lstm_cv_train_eval(trainX, trainY, testX, testY,
     """
     # argument check
     if not all(isinstance(input, np.ndarray) for input in [trainX, trainY, testX, testY]):
-        raise TypeError('All input needs to be in np.ndarray.')
+        raise TypeError('All input needs to be np.ndarray.')
     if not all(len(x_input.shape) == 3 for x_input in [trainX, testX]):
         raise NpArrayShapeError('trainX and testX need to be in 3D shape.')
     if not (trainX.shape[1] == testX.shape[1] and trainX.shape[2] == testX.shape[2]):

@@ -186,10 +186,10 @@ y_plot = scaler_Y.inverse_transform(y_plot.reshape(y_plot.shape[0], 1))
 y_plot = y_plot.reshape(y_plot.shape[0], )
 
 # -- plotting
-y_yhat_plot(filepath=os.path.join(res_dir, freq+'_bidir.performance.pdf'),
+y_yhat_plot(filepath=os.path.join(res_dir, freq+'_simple.performance.pdf'),
             y_true=y_plot,
             training_yhat=training_y_hat, test_yhat=test_y_hat,
-            plot_title='Bidirectional LSTM model prediction plot',
+            plot_title='Simple LSTM model prediction plot',
             ylabel='PCL', xlabel='Subjects', plot_style='classic')
 
 # for enc-dec model
