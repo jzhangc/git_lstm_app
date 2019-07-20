@@ -16,7 +16,7 @@ from sklearn.model_selection import KFold
 from custom_functions.cv_functions import (NpArrayShapeError,
                                            PdDataFrameTypeError, idx_func,
                                            longitudinal_cv_xy_array,
-                                           lstm_cv,
+                                           lstm_cv_train,
                                            lstm_ensemble_eval,
                                            lstm_ensemble_predict)
 from custom_functions.data_processing import (inverse_norm_y,
@@ -108,14 +108,14 @@ for i in range(n_folds):
     print('fold: ', fold_id)
     cv_train_X, cv_train_Y = X[cv_train_idx[i]], Y[cv_train_idx[i]]
     cv_test_X, cv_test_Y = X[cv_test_idx[i]], Y[cv_test_idx[i]]
-    cv_m, cv_m_history, cv_m_test_rmse = lstm_cv(trainX=cv_train_X, trainY=cv_train_Y,
-                                                 testX=cv_test_X, testY=cv_test_Y,
-                                                 lstm_model='simple',
-                                                 hidden_units=6, epochs=400, batch_size=29,
-                                                 plot=False, filepath=os.path.join(res_dir, 'cv_simple_loss_fold_'+fold_id+'.pdf'),
-                                                 plot_title='Simple LSTM model',
-                                                 ylabel='MSE',
-                                                 verbose=False)
+    cv_m, cv_m_history, cv_m_test_rmse = lstm_cv_train(trainX=cv_train_X, trainY=cv_train_Y,
+                                                       testX=cv_test_X, testY=cv_test_Y,
+                                                       lstm_model='simple',
+                                                       hidden_units=6, epochs=400, batch_size=29,
+                                                       plot=False, filepath=os.path.join(res_dir, 'cv_simple_loss_fold_'+fold_id+'.pdf'),
+                                                       plot_title='Simple LSTM model',
+                                                       ylabel='MSE',
+                                                       verbose=False)
     cv_m_ensemble.append(cv_m)
     cv_m_history_ensemble.append(cv_m_history)
     cv_m_test_rmse_ensemble.append(cv_m_test_rmse)

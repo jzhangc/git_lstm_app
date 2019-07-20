@@ -125,13 +125,13 @@ def lstm_ensemble_predict(models, n_members, testX, outcome_type='regression'):
     return result
 
 
-def lstm_cv(trainX, trainY, testX, testY,
-            lstm_model='simple', study_type='n_to_one', outcome_type='regression',
-            hidden_units=50,
-            epochs=200, batch_size=16,
-            loss='mean_squared_error',
-            optimizer='adam',
-            plot=False, verbose=False, **kwargs):
+def lstm_cv_train(trainX, trainY, testX, testY,
+                  lstm_model='simple', study_type='n_to_one', outcome_type='regression',
+                  hidden_units=50,
+                  epochs=200, batch_size=16,
+                  loss='mean_squared_error',
+                  optimizer='adam',
+                  plot=False, verbose=False, **kwargs):
     """
     # Purpose:
         This is the wraper function for LSTM model training and evaluating.
