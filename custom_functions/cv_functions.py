@@ -125,13 +125,13 @@ def lstm_ensemble_predict(models, n_members, testX, outcome_type='regression'):
     return result
 
 
-def lstm_cv_train_eval(trainX, trainY, testX, testY,
-                       lstm_model='simple', study_type='n_to_one', outcome_type='regression',
-                       hidden_units=50,
-                       epochs=200, batch_size=16,
-                       loss='mean_squared_error',
-                       optimizer='adam',
-                       plot=False, verbose=False, **kwargs):
+def lstm_cv(trainX, trainY, testX, testY,
+            lstm_model='simple', study_type='n_to_one', outcome_type='regression',
+            hidden_units=50,
+            epochs=200, batch_size=16,
+            loss='mean_squared_error',
+            optimizer='adam',
+            plot=False, verbose=False, **kwargs):
     """
     # Purpose:
         This is the wraper function for LSTM model training and evaluating.
@@ -154,7 +154,7 @@ def lstm_cv_train_eval(trainX, trainY, testX, testY,
         **kwargs: keyword arguments passed to the plot function epochs_loss_plot().
 
     # Return:
-        A compiled LSTM model object, its modelling history, as well as the evaluation results
+        A compiled LSTM model object, its modelling history, as well as the evaluation (on the hold-off fold) results
 
     # Details:
         This function trains and evaluates single LSTM model. Thus, the function is used as an

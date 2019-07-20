@@ -128,6 +128,9 @@ def y_yhat_plot(filepath, y_true,
 
     # plot
     fig, ax = plt.subplots(figsize=figure_size)
+    ax.set_xlim((0, 33))
+    fig.set_facecolor('white')
+    ax.set_facecolor('white')
     if plot_type == 'bar':
         # distance
         r1 = np.arange(1, len(y)+1) - bar_width/2
@@ -141,7 +144,7 @@ def y_yhat_plot(filepath, y_true,
         ax.bar(r3, test_yhat_plot, yerr=test_yhat_err_plot,
                width=bar_width, color='blue', label='test', ecolor='black', capsize=0)
         ax.axhline(color='black')
-    else:
+    else:  # scatter plot
         ax.scatter(x, y, color='red', label='original')
         ax.fill_between(x, training_yhat_plot-training_yhat_err_plot,
                         training_yhat_plot+training_yhat_err_plot, color='gray', alpha=0.2,
@@ -149,12 +152,16 @@ def y_yhat_plot(filepath, y_true,
         ax.fill_between(x, test_yhat_plot-test_yhat_err_plot,
                         test_yhat_plot+test_yhat_err_plot, color='blue', alpha=0.2,
                         label='test')
-    ax.legend(loc='best', ncol=3, fontsize=8)
-    ax.set_title(plot_title, fontsize=10)
-    ax.set_xlabel(xlabel, fontsize=10)
-    ax.set_ylabel(ylabel, fontsize=10)
-    ax.tick_params(axis='both', which='major', labelsize=5)
-    ax.set_xlim([0, 33])
+    ax.set_title(plot_title, color='black')
+    ax.set_xlabel(xlabel, fontsize=10, color='black')
+    ax.set_ylabel(ylabel, fontsize=10, color='black')
+    ax.tick_params(labelsize=5, color='black', labelcolor='black')
+    plt.setp(ax.spines.values(), color='black')
+    leg = ax.legend(loc='best', ncol=3, fontsize=8, facecolor='white')
+    for text in leg.get_texts():
+        text.set_color('black')
+        text.set_weight('bold')
+        text.set_alpha(0.5)
     plt.savefig(filepath, dpi=600, bbox_inches='tight', facecolor='white')
     fig
     return fig, ax
