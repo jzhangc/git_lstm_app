@@ -119,8 +119,8 @@ for i in range(n_folds):
     cv_m_ensemble.append(cv_m)
     cv_m_history_ensemble.append(cv_m_history)
     cv_m_test_rmse_ensemble.append(cv_m_test_rmse)
-np.std(cv_m_test_rmse_ensemble)  # 0.112
-np.mean(cv_m_test_rmse_ensemble)  # 0.298
+np.std(cv_m_test_rmse_ensemble)  # 0.163
+np.mean(cv_m_test_rmse_ensemble)  # 0.345
 
 # ------ prediction ------
 # prediction for 20% test subjests
@@ -152,8 +152,8 @@ trainingX_conv, testY_conv = inverse_norm_y(training_y=trainingY,
 test_rmse = lstm_ensemble_eval(models=cv_m_ensemble, n_members=len(cv_m_ensemble),
                                testX=testX, testY=testY)
 test_rmse = np.array(test_rmse)
-np.std(test_rmse)  # 0.074
-np.mean(test_rmse)  # 0.365
+np.std(test_rmse)  # 0.101
+np.mean(test_rmse)  # 0.368
 
 # ------ plot testing ------
 y = np.concatenate([trainingY, testY])
@@ -167,87 +167,5 @@ y_yhat_plot(filepath=os.path.join(res_dir, 'cv_plot_test.pdf'),
             test_yhat=yhats_testX_pred,
             test_yhat_err=yhats_testX_sem,
             plot_title='CV RMSE',
-            ylabel='PCL', xlabel='Subjects', plot_type='scatter',
+            ylabel='PCL', xlabel='Subjects', plot_type='bar',
             bar_width=0.25)
-
-# ------ test OO syntax for plotting ------
-filepath = os.path.join(res_dir, 'cv_plot_test.pdf')
-y_true = y_true
-training_yhat = yhats_trainingX_pred
-training_yhat_err = yhats_trainingX_sem
-test_yhat = yhats_testX_pred
-test_yhat_err = yhats_testX_sem
-plot_title = 'CV RMSE'
-ylabel = 'PCL'
-xlabel = 'Subjects'
-plot_type = 'bar'
-bar_width = 0.25
-
-y = y_true
-x = np.arange(1, len(y)+1)
-
-# ---- one plot
-training_yhat_plot, training_yhat_err_plot = np.empty_like(y), np.empty_like(y)
-training_yhat_plot[:, ], training_yhat_err_plot[:, ] = np.nan, np.nan
-training_yhat_plot[0:training_yhat.shape[0],
-                   ], training_yhat_err_plot[0:training_yhat_err.shape[0], ] = training_yhat, training_yhat_err
-
-test_yhat_plot, test_yhat_err_plot = np.empty_like(y), np.empty_like(y)
-test_yhat_plot[:, ], test_yhat_err_plot[:, ] = np.nan, np.nan
-test_yhat_plot[training_yhat.shape[0]:,
-               ], test_yhat_err_plot[training_yhat_err.shape[0]:, ] = test_yhat, test_yhat_err
-
-# distance
-r1 = np.arange(1, len(y)+1) - bar_width/2
-r2 = np.arange(1, len(y)+1) + bar_width/2
-r3 = r2
-
-# OO syntax
-fig, ax = plt.subplots(figsize=(9, 3))
-ax.set_xlim((0, 33))
-fig.set_facecolor('white')
-ax.set_facecolor('white')
-ax.bar(r1, y, width=bar_width, color='red', label='original')
-ax.bar(r2, training_yhat_plot, yerr=training_yhat_err_plot,
-       width=bar_width, color='gray', label='training', ecolor='black', capsize=0)
-ax.bar(r3, test_yhat_plot, yerr=test_yhat_err_plot,
-       width=bar_width, color='blue', label='test', ecolor='black', capsize=0)
-ax.axhline(color='black')
-ax.set_title(plot_title, color='black')
-ax.set_xlabel(xlabel, fontsize=10, color='black')
-ax.set_ylabel(ylabel, fontsize=10, color='black')
-ax.tick_params(labelsize=5, color='black', labelcolor='black')
-plt.setp(ax.spines.values(), color='black')
-leg = ax.legend(loc='best', ncol=3, fontsize=8, facecolor='white')
-for text in leg.get_texts():
-    text.set_color('black')
-    text.set_weight('bold')
-    text.set_alpha(0.5)
-
-fig.savefig(filepath, dpi=600, bbox_inches='tight', facecolor='white')
-fig
-
-
-fig, ax = plt.subplots(figsize=(9, 3), facecolor='white')
-ax.set_xlim((0, 33))
-fig.set_facecolor('white')
-ax.set_facecolor('white')
-ax.scatter(x, y, color='red', label='original')
-ax.fill_between(x, training_yhat_plot-training_yhat_err_plot,
-                training_yhat_plot+training_yhat_err_plot, color='gray', alpha=0.2,
-                label='training')
-ax.fill_between(x, test_yhat_plot-test_yhat_err_plot,
-                test_yhat_plot+test_yhat_err_plot, color='blue', alpha=0.2,
-                label='test')
-ax.set_title(plot_title, color='black')
-ax.set_xlabel(xlabel, fontsize=10, color='black')
-ax.set_ylabel(ylabel, fontsize=10, color='black')
-ax.tick_params(labelsize=5, color='black', labelcolor='black')
-plt.setp(ax.spines.values(), color='black')
-leg = ax.legend(loc='best', ncol=3, fontsize=8, facecolor='white')
-for text in leg.get_texts():
-    text.set_color('black')
-    text.set_weight('bold')
-    text.set_alpha(0.5)
-fig.savefig(filepath, dpi=600, bbox_inches='tight', facecolor='white')
-fig
