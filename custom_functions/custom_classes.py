@@ -142,10 +142,7 @@ class lstm_cv(object):
                                                                testX=cv_test_X, testY=cv_test_Y,
                                                                lstm_model='simple',
                                                                hidden_units=6, epochs=400, batch_size=29,
-                                                               plot=False, filepath=os.path.join(res_dir, 'cv_simple_loss_fold_'+fold_id+'.pdf'),
-                                                               plot_title='Simple LSTM model',
-                                                               ylabel='MSE',
-                                                               verbose=False)
+                                                               plot=False, verbose=False)
             self.cv_m_ensemble.append(cv_m)
             self.__cv_m_history_ensemble.append(cv_m_history)
             self.cv_m_test_rmse_ensemble.append(cv_m_test_rmse)
