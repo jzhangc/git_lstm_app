@@ -223,15 +223,16 @@ def idx_func(input, n_features, Y_colnames, remove_colnames, n_folds=10, random_
 
     # Return 
         (In this order):
-        X array, Y array, kfold training indices, kfold test indices
+        kfold training indices, kfold test indices
 
     # Details:
         This is a temp function for testing cross validation
     """
     # argument check is done by longitudinal_cv_xy_array function
-    # set up the x y array data
-    X, Y = longitudinal_cv_xy_array(input=input, Y_colnames=Y_colnames,
-                                    remove_colnames=remove_colnames, n_features=n_features)
+
+    # # set up the x y array data
+    # X, Y = longitudinal_cv_xy_array(input=input, Y_colnames=Y_colnames,
+    #                                 remove_colnames=remove_colnames, n_features=n_features)
 
     # setup KFold
     kfold = KFold(n_splits=n_folds, shuffle=True, random_state=random_state)
@@ -243,7 +244,7 @@ def idx_func(input, n_features, Y_colnames, remove_colnames, n_folds=10, random_
         test_indices.append(test_index)
 
     # return data
-    return X, Y, train_indices, test_indices
+    return train_indices, test_indices
 
 
 def longitudinal_cv_xy_array(input, Y_colnames, remove_colnames, n_features):
