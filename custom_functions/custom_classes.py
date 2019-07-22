@@ -2,12 +2,14 @@
 classess (data and exceptions) for the lstm app
 """
 
+import numpy as np
 # ------ libraries ------
 import pandas as pd
-import numpy as np
+
+from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
+                                           lstm_cv_train)
 from custom_functions.data_processing import (inverse_norm_y,
                                               training_test_spliter)
-from custom_functions.cv_functions import longitudinal_cv_xy_array, idx_func
 
 
 # ------ classes ------
