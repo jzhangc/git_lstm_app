@@ -43,7 +43,7 @@ class lstm_cv(object):
                                     to remove from the X columns for scaling. 
                                     makes sure to also inlcude the y column(s)
 
-        # Return
+        # Prduct
              self.training: np.ndarray. 
              self.test: np.ndarray.
              self.__scaleX: scaler. Private. 
@@ -76,7 +76,7 @@ class lstm_cv(object):
             remove_colnames: column to remove to generate X array. has to be a list
             n_features: the number of features used for each timepoint
 
-        # Return
+        # Product
             (All np.ndarray and private)
             self.__trainingX
             self.__trainingY
@@ -118,7 +118,7 @@ class lstm_cv(object):
             verbose: verbose setting.
             **kwargs: keyword arguments passed to the plot function epochs_loss_plot().
 
-        # Return
+        # Product
             (all np.ndarray)
             self.cv_m_ensemble: LSTM CV model ensemble.
             self.__cv_m_history_ensemble: private. loss history for plotting.
