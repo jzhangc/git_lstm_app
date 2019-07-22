@@ -13,11 +13,10 @@ from sklearn.metrics import accuracy_score, mean_squared_error
 # StratifiedKFold makes sure the fold has an equal representation of the classes
 from sklearn.model_selection import KFold
 
-from custom_functions.cv_functions import (NpArrayShapeError,
-                                           PdDataFrameTypeError, idx_func,
-                                           longitudinal_cv_xy_array,
-                                           lstm_cv_train,
-                                           lstm_ensemble_eval,
+from custom_functions.custom_classes import (NpArrayShapeError,
+                                             PdDataFrameTypeError)
+from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
+                                           lstm_cv_train, lstm_ensemble_eval,
                                            lstm_ensemble_predict)
 from custom_functions.data_processing import (inverse_norm_y,
                                               training_test_spliter)

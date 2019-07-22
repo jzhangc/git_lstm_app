@@ -13,20 +13,14 @@ from sklearn.metrics import accuracy_score, mean_squared_error
 # StratifiedKFold makes sure the fold has an equal representation of the classes
 from sklearn.model_selection import KFold
 
+from custom_functions.custom_classes import (NpArrayShapeError,
+                                             PdDataFrameTypeError)
 from custom_functions.lstm_functions import (bidirectional_lstm_m,
                                              simple_lstm_m, stacked_lstm_m)
 from custom_functions.plot_functions import epochs_loss_plot
 
 
 # ------ functions ------
-class PdDataFrameTypeError(TypeError):
-    pass
-
-
-class NpArrayShapeError(TypeError):
-    pass
-
-
 def lstm_ensemble_eval(models, n_members, testX, testY, outcome_type='regression'):
     """
     # Purpose:
@@ -234,7 +228,7 @@ def idx_func(input, n_features, Y_colnames, remove_colnames, n_folds=10, random_
     # Details:
         This is a temp function for testing cross validation
     """
-
+    # argument check is done by longitudinal_cv_xy_array function
     # set up the x y array data
     X, Y = longitudinal_cv_xy_array(input=input, Y_colnames=Y_colnames,
                                     remove_colnames=remove_colnames, n_features=n_features)
@@ -281,7 +275,7 @@ def longitudinal_cv_xy_array(input, Y_colnames, remove_colnames, n_features):
     """
     # input type check
     if not isinstance(input, pd.DataFrame):
-        raise PdDataFrameTypeError("Inoput needs to be a pandas DataFrame.")
+        raise TypeError("Inoput needs to be a pandas DataFrame.")
     if not isinstance(Y_colnames, list) or not isinstance(remove_colnames, list):
         raise TypeError("Y_colnames and remove_colnames need to be list type.")
 

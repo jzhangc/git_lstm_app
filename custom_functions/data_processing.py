@@ -19,7 +19,8 @@ from sklearn.preprocessing import MinMaxScaler
 
 # ------ functions ------
 def training_test_spliter(data, training_percent=0.8, random_state=None,
-                          min_max_scaling=False, scale_column_as_y=None, scale_column_to_exclude=None, scale_range=(0, 1)):
+                          min_max_scaling=False, scale_column_as_y=None,
+                          scale_column_to_exclude=None, scale_range=(0, 1)):
     """
     # Purpose:
         This funciton takes an pandas DataFrame, randomly resamples the data and
@@ -31,16 +32,24 @@ def training_test_spliter(data, training_percent=0.8, random_state=None,
         The X and Y scalers are also returned
 
     # Arguments:
-        data: input data
-        training_percent: percentage of the full data to be the training
-        random_state: seed for resampling RNG
-        min_max_scaling: if to do a Min_Max scaling to the data
-        scale_column_as_y: column(s) to use as outcome for scaling
-        scale_column_to_exclude: has to be a list, the name of the columns 
+        data: . Pnadas DataFrame. input data.
+        training_percent: float. percentage of the full data to be the training
+        random_state: int. seed for resampling RNG
+        min_max_scaling: boolean. if to do a Min_Max scaling to the data
+        scale_column_as_y: list. column(s) to use as outcome for scaling
+        scale_column_to_exclude: list. the name of the columns 
                                 to remove from the X columns for scaling. 
                                 makes sure to also inlcude the y column(s)
-        scale_range: the Min_Max range
+        scale_range: two-tuple. the Min_Max range.
     """
+    # argument check
+    if not isinstance(input, pd.DataFrame):
+        raise TypeError("Inoput needs to be a pandas DataFrame.")
+    if not all(isinstance(scale_list, pd.DataFrame) for scale_list in [scale_column_as_y, scale_column_to_exclude]):
+        raise ValueError(
+            'scale_column_as_y and scale_column_to_exclude need to be list.')
+
+    # set the variables
     scaler_X, scaler_Y = None, None
 
     # normalization if needed
