@@ -123,8 +123,10 @@ class lstm_cv(object):
             (all np.ndarray)
             self.cv_model_ensemble: LSTM CV model ensemble.
             self.__cv_model_history_ensemble: private. loss history for plotting.
-            self.cv_holdoff_rmse: private. RMSE on CV hold-off fold for each CV fold.
-            self.cv_
+            self.cv_holdoff_rmse: private. CV RMSE on the hold-off fold for each CV training fold.
+            self.cv_holdoff_rmse_mean: float. CV RMSE mean on the hold-off fold.
+            self.cv_holdoff_rmse_std: float. CV RMSE standard deviation on the hold-off fold.
+            self.cv_holdoff_rmse_sem: float. CV RMSE standard error on the hold-off fold.
         """
         # calculate CV spliting indices
         self.__cv_training_idx, self.__cv_test_idx = idx_func(
