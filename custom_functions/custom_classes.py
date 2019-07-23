@@ -138,8 +138,8 @@ class lstm_cv(object):
         for i in range(n_folds):
             fold_id = str(i+1)
             print('fold: ', fold_id)
-            cv_train_X, cv_train_Y = self.__trainingX[self.__cv_train_idx[i]
-                                                      ], self.__trainingY[self.__cv_train_idx[i]]
+            cv_train_X, cv_train_Y = self.__trainingX[self.__cv_training_idx[i]
+                                                      ], self.__trainingY[self.__cv_training_idx[i]]
             cv_test_X, cv_test_Y = self.__trainingX[self.__cv_test_idx[i]
                                                     ], self.__trainingY[self.__cv_test_idx[i]]
             cv_m, cv_m_history, cv_m_test_rmse = lstm_cv_train(trainX=cv_train_X, trainY=cv_train_Y,
