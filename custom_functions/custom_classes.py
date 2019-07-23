@@ -69,7 +69,7 @@ class lstm_cv(object):
             This method is to process the input data into separate X and Y arrays for 
             training and test data. The method also returns
 
-        # arguments
+        # Arguments
             (*arg, **kwargs: arguments for longitudinal_cv_xy_array function.)
             input: input 2D pandas DataFrame
             Y_colnames: column names for Y array. has to be a list
