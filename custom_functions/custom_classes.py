@@ -2,8 +2,9 @@
 classess (data and exceptions) for the lstm app
 """
 
-import numpy as np
 # ------ libraries ------
+import math
+import numpy as np
 import pandas as pd
 
 from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
@@ -120,9 +121,10 @@ class lstm_cv(object):
 
         # Product
             (all np.ndarray)
-            self.cv_m_ensemble: LSTM CV model ensemble.
-            self.__cv_m_history_ensemble: private. loss history for plotting.
-            self.cv_m_test_rmse_ensemble: private. RMSE on CV hold-off fold for each CV fold.
+            self.cv_model_ensemble: LSTM CV model ensemble.
+            self.__cv_model_history_ensemble: private. loss history for plotting.
+            self.cv_holdoff_rmse: private. RMSE on CV hold-off fold for each CV fold.
+            self.cv_
         """
         # calculate CV spliting indices
         self.__cv_training_idx, self.__cv_test_idx = idx_func(
@@ -130,7 +132,7 @@ class lstm_cv(object):
             n_folds=n_folds, random_state=random_state)
 
         # CV
-        self.cv_m_ensemble, self.__cv_m_history_ensemble, self.cv_m_test_rmse_ensemble = list(), list(), list()
+        self.cv_model_ensemble, self.__cv_model_history_ensemble, self.cv_holdoff_rmse = list(), list(), list()
         for i in range(n_folds):
             fold_id = str(i+1)
             print('fold: ', fold_id)
@@ -143,14 +145,31 @@ class lstm_cv(object):
                                                                lstm_model='simple',
                                                                hidden_units=6, epochs=400, batch_size=29,
                                                                plot=False, verbose=False)
-            self.cv_m_ensemble.append(cv_m)
-            self.__cv_m_history_ensemble.append(cv_m_history)
-            self.cv_m_test_rmse_ensemble.append(cv_m_test_rmse)
-
-    def rmse(self, testX):
-        # TBC
-        return None
+            self.cv_model_ensemble.append(cv_m)
+            self.__cv_model_history_ensemble.append(cv_m_history)
+            self.cv_holdoff_rmse.append(cv_m_test_rmse)
+        self.cv_holdoff_rmse_mean = np.mean(self.cv_holdoff_rmse.append)
+        self.cv_holdoff_rmse_std = np.std(self.cv_holdoff_rmse.append)
+        self.cv_holdoff_rmse_sem = self.cv_holdoff_rmse_std/math.sqrt(n_folds)
 
     def predict(self, testX):
-        # TBC
+        # test
         return None
+
+    @property
+    def holdoff_mean(self):
+        if self.cv_holdoff_rmse_mean:
+            return self.cv_holdoff_rmse_mean
+        return []
+
+    @property
+    def holdoff_std(self):
+        if self.cv_holdoff_rmse_std:
+            return self.cv_holdoff_rmse_std
+        return []
+
+    @property
+    def holdoff_sem(self):
+        if self.cv_holdoff_rmse_sem:
+            return self.cv_holdoff_rmse_sem
+        return []
