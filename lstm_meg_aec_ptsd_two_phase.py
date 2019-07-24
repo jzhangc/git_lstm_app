@@ -50,7 +50,7 @@ freq = 'freq8'
 raw.shape
 raw.iloc[0:5, 0:5]
 
-
+type(raw)
 # ---- generate training and test sets with min-max normalization
 training, test, scaler_X, scaler_Y = training_test_spliter(
     data=raw, training_percent=0.9, random_state=9, min_max_scaling=True,

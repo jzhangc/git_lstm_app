@@ -4,9 +4,12 @@ classess (data and exceptions) for the lstm app
 
 # ------ libraries ------
 import math
+
 import numpy as np
 import pandas as pd
 
+from custom_functions.custom_exceptions import (NpArrayShapeError,
+                                                PdDataFrameTypeError)
 from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
                                            lstm_cv_train)
 from custom_functions.data_processing import (inverse_norm_y,
@@ -14,14 +17,6 @@ from custom_functions.data_processing import (inverse_norm_y,
 
 
 # ------ classes ------
-class PdDataFrameTypeError(TypeError):
-    pass
-
-
-class NpArrayShapeError(ValueError):
-    pass
-
-
 class lstm_cv(object):
     """
     # Purpose

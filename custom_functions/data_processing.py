@@ -32,7 +32,7 @@ def training_test_spliter(data, training_percent=0.8, random_state=None,
         The X and Y scalers are also returned
 
     # Arguments:
-        data: . Pnadas DataFrame. input data.
+        data: Pnadas DataFrame. Input data.
         training_percent: float. percentage of the full data to be the training
         random_state: int. seed for resampling RNG
         min_max_scaling: boolean. if to do a Min_Max scaling to the data
@@ -43,9 +43,9 @@ def training_test_spliter(data, training_percent=0.8, random_state=None,
         scale_range: two-tuple. the Min_Max range.
     """
     # argument check
-    if not isinstance(input, pd.DataFrame):
-        raise TypeError("Inoput needs to be a pandas DataFrame.")
-    if not all(isinstance(scale_list, pd.DataFrame) for scale_list in [scale_column_as_y, scale_column_to_exclude]):
+    if not isinstance(data, pd.DataFrame):
+        raise TypeError("Input needs to be a pandas DataFrame.")
+    if not all(isinstance(scale_list, list) for scale_list in [scale_column_as_y, scale_column_to_exclude]):
         raise ValueError(
             'scale_column_as_y and scale_column_to_exclude need to be list.')
 
