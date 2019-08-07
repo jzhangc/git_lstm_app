@@ -3,5 +3,6 @@
 results
 venv
 data
+log
 __pycache__/
 *.py[cod]
