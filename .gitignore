@@ -2,5 +2,6 @@
 .vscode
 results
 venv
+data
 __pycache__/
 *.py[cod]
