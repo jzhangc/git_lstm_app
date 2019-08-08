@@ -70,13 +70,13 @@ logger = logging_func(filepath=os.path.join(
 
 # ---- import data
 raw = pd.read_csv(os.path.join(
-    dat_dir, 'lstm_aec_phases_freq7.csv'), engine='python')
+    dat_dir, 'lstm_aec_phases_freq8.csv'), engine='python')
 raw.iloc[0:5, 0:5]
 y = np.array(raw.loc[:, 'PCL'])
 
 
 # ---- key variables
-n_features = 15
+n_features = 16
 n_folds = 10
 
 # ---- generate training and test sets with min-max normalization
@@ -124,7 +124,7 @@ for i in range(n_folds):
 
 cv_rmse_mean = np.mean(cv_m_test_rmse_ensemble)
 cv_rmse_sem = np.std(cv_m_test_rmse_ensemble)/math.sqrt(n_folds)
-cv_rmse_mean  # 0.261
+cv_rmse_mean  # 0.419
 cv_rmse_sem  # 0.05
 
 
@@ -173,20 +173,20 @@ for yhat_testX in yhats_testX:
 rmse_yhats = np.array(rmse_yhats)
 rmse_yhats_mean = np.mean(rmse_yhats)
 rmse_yhats_sem = np.std(rmse_yhats)/math.sqrt(n_folds)
-rmse_yhats_mean  # 60.6
-rmse_yhats_sem  # 3.8
+rmse_yhats_mean  # 23.8
+rmse_yhats_sem  # 2.74
 
 # ------ plot testing ------
 y = np.concatenate([trainingY, testY])
 y_true = scaler_Y.inverse_transform(y.reshape(y.shape[0], 1))
 y_true = y_true.reshape(y_true.shape[0], )
 
-y_yhat_plot(filepath=os.path.join(res_dir, 'freq7_cv_plot_scatter.pdf'),
+y_yhat_plot(filepath=os.path.join(res_dir, 'freq8_cv_plot_bar.pdf'),
             y_true=y_true,
             training_yhat=yhats_trainingX_pred,
             training_yhat_err=yhats_trainingX_sem,
             test_yhat=yhats_testX_pred,
             test_yhat_err=yhats_testX_sem,
             plot_title='Cross-validation prediction',
-            ylabel='PCL', xlabel='Subjects', plot_type='scatter',
+            ylabel='PCL', xlabel='Subjects', plot_type='bar',
             bar_width=0.25)

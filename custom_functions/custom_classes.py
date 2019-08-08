@@ -150,7 +150,7 @@ class lstm_cv(object):
         self.cv_holdoff_rmse_sem = self.cv_holdoff_rmse_std/math.sqrt(n_folds)
 
     def predict(self, testX):
-        # to be completed
+        # test
         return None
 
     @property
