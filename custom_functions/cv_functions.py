@@ -17,7 +17,7 @@ from custom_functions.custom_exceptions import (NpArrayShapeError,
                                                 PdDataFrameTypeError)
 from custom_functions.lstm_functions import (bidirectional_lstm_m,
                                              simple_lstm_m, stacked_lstm_m)
-from custom_functions.plot_functions import epochs_loss_plot
+from custom_functions.plot_functions import epochs_plot
 
 
 # ------ functions ------
@@ -192,7 +192,7 @@ def lstm_cv_train(trainX, trainY, testX, testY,
 
     # loss plot
     if plot:
-        epochs_loss_plot(model_history=m_history, **kwargs)
+        epochs_plot(model_history=m_history, **kwargs)
 
     # evaluating
     # NOTE: below: regressional study only outputs loss (usually MSE), no accuracy

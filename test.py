@@ -6,6 +6,7 @@ import os
 
 import numpy as np
 import pandas as pd
+from keras.callbacks import History  # for input argument type check
 from matplotlib import pyplot as plt
 from sklearn.datasets.samples_generator import make_blobs
 from sklearn.metrics import accuracy_score, mean_squared_error
@@ -56,7 +57,7 @@ def lstm_cv(input, Y_colnames, remove_colnames, n_features,
     return None
 
 
-# ------ script ------
+# ------ data processing ------
 # ---- working directory
 main_dir = os.path.abspath('./')
 dat_dir = os.path.join(main_dir, 'data')
@@ -69,35 +70,36 @@ logger = logging_func(filepath=os.path.join(
 
 # ---- import data
 raw = pd.read_csv(os.path.join(
-    dat_dir, 'lstm_aec_phases_freq1.csv'), engine='python')
+    dat_dir, 'lstm_aec_phases_freq7.csv'), engine='python')
 raw.iloc[0:5, 0:5]
 y = np.array(raw.loc[:, 'PCL'])
+
+
+# ---- key variables
+n_features = 15
+n_folds = 10
 
 # ---- generate training and test sets with min-max normalization
 training, test, scaler_X, scaler_Y = training_test_spliter(
     data=raw, training_percent=0.9, random_state=10, min_max_scaling=True,
     scale_column_as_y=['PCL'],
     scale_column_to_exclude=['subject', 'PCL', 'group'])
-
 trainingX, trainingY = longitudinal_cv_xy_array(input=training, Y_colnames=['PCL'],
-                                                remove_colnames=['subject', 'group'], n_features=8)
+                                                remove_colnames=['subject', 'group'], n_features=n_features)
 testX, testY = longitudinal_cv_xy_array(input=test, Y_colnames=['PCL'],
-                                        remove_colnames=['subject', 'group'], n_features=8)
-
+                                        remove_colnames=['subject', 'group'], n_features=n_features)
 
 # below: as an example for converting the normalized Y back to measured values
 # _, testY = inverse_norm_y(training_y=trainingY, test_y=testY, scaler=scaler_Y)
-
 # ---- test k-fold data sampling
-n_folds = 10
-cv_train_idx, cv_test_idx = idx_func(input=training, n_features=8, Y_colnames=['PCL'],
+cv_train_idx, cv_test_idx = idx_func(input=training, n_features=n_features, Y_colnames=['PCL'],
                                      remove_colnames=['subject', 'group'], n_folds=n_folds, random_state=5)
 
-X.shape  # n_samples x n_timepoints x n_features: 29x2x8
-Y.shape  # 29x1
-len(cv_train_idx[0])
+trainingX.shape  # n_samples x n_timepoints x n_features
+trainingY.shape  # 29x1
+len(cv_train_idx[0])  # 26
 
-# test
+# ------ cross-validation modelling ------
 cv_m_ensemble, cv_m_history_ensemble, cv_m_test_rmse_ensemble = list(), list(), list()
 for i in range(n_folds):
     fold_id = str(i+1)
@@ -109,15 +111,22 @@ for i in range(n_folds):
                                                        testX=cv_test_X, testY=cv_test_Y,
                                                        lstm_model='simple',
                                                        hidden_units=6, epochs=400, batch_size=29,
-                                                       plot=False, filepath=os.path.join(res_dir, 'cv_simple_loss_fold_'+fold_id+'.pdf'),
-                                                       plot_title='Simple LSTM model',
-                                                       ylabel='MSE',
+                                                       plot=True,
+                                                       filepath=os.path.join(
+                                                           res_dir, 'cv_simple_loss_fold_'+fold_id+'.pdf'),
+                                                       plot_title=None,
+                                                       xlabel=None,
+                                                       ylabel=None,
                                                        verbose=False)
     cv_m_ensemble.append(cv_m)
     cv_m_history_ensemble.append(cv_m_history)
     cv_m_test_rmse_ensemble.append(cv_m_test_rmse)
-np.std(cv_m_test_rmse_ensemble)  # 0.163
-np.mean(cv_m_test_rmse_ensemble)  # 0.345
+
+cv_rmse_mean = np.mean(cv_m_test_rmse_ensemble)
+cv_rmse_sem = np.std(cv_m_test_rmse_ensemble)/math.sqrt(n_folds)
+cv_rmse_mean  # 0.261
+cv_rmse_sem  # 0.05
+
 
 # ------ prediction ------
 # prediction for 20% test subjests
@@ -142,27 +151,42 @@ yhats_trainingX_std, yhats_testX_std = inverse_norm_y(
     training_y=yhats_trainingX_std, test_y=yhats_testX_std, scaler=scaler_Y)
 yhats_trainingX_sem, yhats_testX_sem = inverse_norm_y(
     training_y=yhats_trainingX_sem, test_y=yhats_testX_sem, scaler=scaler_Y)
-trainingX_conv, testY_conv = inverse_norm_y(training_y=trainingY,
+trainingY_conv, testY_conv = inverse_norm_y(training_y=trainingY,
                                             test_y=testY, scaler=scaler_Y)
 
 # ------ eval ------
-test_rmse = lstm_ensemble_eval(models=cv_m_ensemble, n_members=len(cv_m_ensemble),
-                               testX=testX, testY=testY)
-test_rmse = np.array(test_rmse)
-np.std(test_rmse)  # 0.101
-np.mean(test_rmse)  # 0.368
+# test_rmse = lstm_ensemble_eval(models=cv_m_ensemble, n_members=len(cv_m_ensemble),
+#                                testX=testX, testY=testY)
+# test_rmse = np.array(test_rmse)
+# test_rmse_mean = np.mean(test_rmse)  # 0.227
+# test_rmse_sem = np.std(test_rmse)/math.sqrt(n_folds)
+
+# below: calcuate RMSE (final, i.e. on the test data) using inversed y and yhat
+# this RMSE is the score to report
+rmse_yhats = list()
+for yhat_testX in yhats_testX:
+    _, yhat_testX_conv = inverse_norm_y(
+        training_y=yhats_trainingX_mean, test_y=yhat_testX, scaler=scaler_Y)
+    rmse_yhat = math.sqrt(mean_squared_error(
+        y_true=testY_conv, y_pred=yhat_testX_conv))
+    rmse_yhats.append(rmse_yhat)
+rmse_yhats = np.array(rmse_yhats)
+rmse_yhats_mean = np.mean(rmse_yhats)
+rmse_yhats_sem = np.std(rmse_yhats)/math.sqrt(n_folds)
+rmse_yhats_mean  # 60.6
+rmse_yhats_sem  # 3.8
 
 # ------ plot testing ------
 y = np.concatenate([trainingY, testY])
 y_true = scaler_Y.inverse_transform(y.reshape(y.shape[0], 1))
 y_true = y_true.reshape(y_true.shape[0], )
 
-y_yhat_plot(filepath=os.path.join(res_dir, 'cv_plot_test.pdf'),
+y_yhat_plot(filepath=os.path.join(res_dir, 'freq7_cv_plot_scatter.pdf'),
             y_true=y_true,
             training_yhat=yhats_trainingX_pred,
             training_yhat_err=yhats_trainingX_sem,
             test_yhat=yhats_testX_pred,
             test_yhat_err=yhats_testX_sem,
-            plot_title='CV RMSE',
-            ylabel='PCL', xlabel='Subjects', plot_type='bar',
+            plot_title='Cross-validation prediction',
+            ylabel='PCL', xlabel='Subjects', plot_type='scatter',
             bar_width=0.25)
