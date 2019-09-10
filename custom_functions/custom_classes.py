@@ -1,5 +1,10 @@
 """
 classess (data and exceptions) for the lstm app
+
+
+DEVELOPMENT ICEBOX
+- develop the classification version of the class
+- decide if to use private variable for all the self variables
 """
 
 # ------ libraries ------
@@ -11,16 +16,17 @@ import pandas as pd
 from custom_functions.custom_exceptions import (NpArrayShapeError,
                                                 PdDataFrameTypeError)
 from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
-                                           lstm_cv_train)
+                                           lstm_cv_train, lstm_ensemble_predict)
 from custom_functions.data_processing import (inverse_norm_y,
                                               training_test_spliter)
 
 
 # ------ classes ------
-class lstm_cv(object):
+# -- regression lstm cross validation modelling and pred/eval class --
+class regression_lstm_cv(object):
     """
     # Purpose
-        The instance of this class contains all the information and results for RNN LSTM modelling
+        The instance of this class contains all the information and results for regresional RNN LSTM modelling.
     """
 
     def __init__(self, data, *args, **kwargs):
@@ -59,14 +65,14 @@ class lstm_cv(object):
         self.training, self.test, self.__scaleX, self.__scaleY = training_test_spliter(
             data=data, *args, **kwargs)
 
-    def process(self, *arg, **kwargs):
+    def process(self, *args, **kwargs):
         """
         # Behaviour
             This method is to process the input data into separate X and Y arrays for 
             training and test data. The method also returns
 
         # Arguments
-            (*arg, **kwargs: arguments for longitudinal_cv_xy_array function.)
+            (*args, **kwargs: arguments for longitudinal_cv_xy_array function.)
             input: input 2D pandas DataFrame
             Y_colnames: column names for Y array. has to be a list
             remove_colnames: column to remove to generate X array. has to be a list
@@ -80,24 +86,25 @@ class lstm_cv(object):
             self.__testY
         """
         self.__trainingX, self.__trainingY = longitudinal_cv_xy_array(
-            input=self.training, *arg, **kwargs)
+            input=self.training, *args, **kwargs)
         self.__testX, self.__testY = longitudinal_cv_xy_array(
-            input=self.test, *arg, **kwargs)
+            input=self.test, *args, **kwargs)
 
-    def cv(self, n_features, Y_colnames, remove_colnames, n_folds=10, random_state=None, *arg, **kwargs):
+    def cv(self, n_features, Y_colnames, remove_colnames, n_folds=10, random_state=None, *args, **kwargs):
         """
         # Behaviour
             This method is the core CV method.
 
         # Arguments
-            (Below: arguments for idx_func function)
+            (Below: mandatory arguments for idx_func function)
             input: input 2D pandas DataFrame
             n_folds: fold number for data spliting
             random_state: random state passed to k-fold spliting
             Y_colnames: column names for Y array. has to be a list
             remove_colnames: column to remove to generate X array. has to be a list
 
-            (*arg, **kwargs: arguments for lstm_cv_train function.)
+            (*args, **kwargs: arguments for lstm_cv_train function.)
+            (below: arguments for lstm_cv_train as a reference)
             trainX: numpy ndarray for training X. shape requirment: n_samples x n_timepoints x n_features.
             trainY: numpy ndarray for training Y. shape requirement: n_samples.
             testX: numpy ndarray for test X. shape requirment: n_samples x n_timepoints x n_features.
@@ -139,19 +146,20 @@ class lstm_cv(object):
                                                     ], self.__trainingY[self.__cv_test_idx[i]]
             cv_m, cv_m_history, cv_m_test_rmse = lstm_cv_train(trainX=cv_train_X, trainY=cv_train_Y,
                                                                testX=cv_test_X, testY=cv_test_Y,
-                                                               lstm_model='simple',
-                                                               hidden_units=6, epochs=400, batch_size=29,
-                                                               plot=False, verbose=False)
+                                                               outcome_type="regression",
+                                                               verbose=False, *args, **kwargs)
+            # below: old, as a reference
+            # cv_m, cv_m_history, cv_m_test_rmse = lstm_cv_train(trainX=cv_train_X, trainY=cv_train_Y,
+            #                                                    testX=cv_test_X, testY=cv_test_Y,
+            #                                                    lstm_model='simple',
+            #                                                    hidden_units=6, epochs=400, batch_size=29,
+            #                                                    plot=False, verbose=False)
             self.cv_model_ensemble.append(cv_m)
             self.__cv_model_history_ensemble.append(cv_m_history)
             self.cv_holdoff_rmse.append(cv_m_test_rmse)
         self.cv_holdoff_rmse_mean = np.mean(self.cv_holdoff_rmse.append)
         self.cv_holdoff_rmse_std = np.std(self.cv_holdoff_rmse.append)
         self.cv_holdoff_rmse_sem = self.cv_holdoff_rmse_std/math.sqrt(n_folds)
-
-    def predict(self, testX):
-        # test
-        return None
 
     @property
     def holdoff_mean(self):
@@ -170,3 +178,50 @@ class lstm_cv(object):
         if self.cv_holdoff_rmse_sem:
             return self.cv_holdoff_rmse_sem
         return []
+
+    def predict(self, newdata):
+        """
+        # Behaviour
+            This method is to use the ensemble model to make a predction using the input data.
+
+        # Arguments
+            newdata: numpy ndarray for test X. optional input new data. shape requirment: n_samples x n_timepoints x n_features. 
+
+        # Details
+            Regardless of newdata, the method always automatically makes prediction using the test and training data sets.             
+        """
+        self.yhats_testX = lstm_ensemble_predict(models=self.cv_model_ensemble, n_members=len(self.cv_model_ensemble),
+                                                 testX=self.__testX)
+        self.yhats_trainingX = lstm_ensemble_predict(models=self.cv_model_ensemble, n_members=len(self.cv_model_ensemble),
+                                                     testX=self.__trainingX)
+
+        if newdata:
+            if not isinstance(newdata, np.ndarray):
+                raise TypeError("newdata needs to be a numpy array.")
+            if not len(newdata.shape) == 3:
+                raise NpArrayShapeError("newdata needs to be in 3D shape.")
+            if not newdata.shape[1:2] == self.__trainingX.shape[1:2]:
+                raise NpArrayShapeError(
+                    "newdata needs to have same number of features and timepoints as the training data.")
+
+            self.yhats_newdata = lstm_ensemble_predict(
+                models=self.cv_model_ensemble, n_members=len(self.cv_model_ensemble), testX=newdata)
+
+    @property
+    def yhats_test(self):
+        if self.yhats_testX:
+            return self.yhats_testX
+        return []
+
+    @property
+    def yhats_training(self):
+        if self.yhats_trainingX:
+            return self.yhats_trainingX
+        return []
+
+
+# -- classification lstm cross validation modelling and pred/eval class --
+class classification_lstm_cv(object):
+    """
+     The instance of this class contains all the information and results for regresional RNN LSTM modelling.
+    """

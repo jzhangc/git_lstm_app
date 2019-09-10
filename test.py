@@ -76,7 +76,7 @@ y = np.array(raw.loc[:, 'PCL'])
 
 
 # ---- key variables
-n_features = 16
+n_features = 10
 n_folds = 10
 
 # ---- generate training and test sets with min-max normalization
@@ -124,8 +124,8 @@ for i in range(n_folds):
 
 cv_rmse_mean = np.mean(cv_m_test_rmse_ensemble)
 cv_rmse_sem = np.std(cv_m_test_rmse_ensemble)/math.sqrt(n_folds)
-cv_rmse_mean  # 0.419
-cv_rmse_sem  # 0.05
+cv_rmse_mean  # 0.343
+cv_rmse_sem  # 0.037
 
 
 # ------ prediction ------
@@ -173,8 +173,8 @@ for yhat_testX in yhats_testX:
 rmse_yhats = np.array(rmse_yhats)
 rmse_yhats_mean = np.mean(rmse_yhats)
 rmse_yhats_sem = np.std(rmse_yhats)/math.sqrt(n_folds)
-rmse_yhats_mean  # 23.8
-rmse_yhats_sem  # 2.74
+rmse_yhats_mean  # 36.3
+rmse_yhats_sem  # 2.79
 
 # ------ plot testing ------
 y = np.concatenate([trainingY, testY])
@@ -190,3 +190,8 @@ y_yhat_plot(filepath=os.path.join(res_dir, 'freq8_cv_plot_bar.pdf'),
             plot_title='Cross-validation prediction',
             ylabel='PCL', xlabel='Subjects', plot_type='bar',
             bar_width=0.25)
+
+
+# ------ true test realm ------
+trainingX.shape  # 29, 2, 10
+testX.shape  # 3, 2, 10
