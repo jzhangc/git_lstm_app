@@ -9,7 +9,7 @@ import pandas as pd
 from keras.callbacks import History  # for input argument type check
 from matplotlib import pyplot as plt
 from sklearn.datasets.samples_generator import make_blobs
-from sklearn.metrics import accuracy_score, mean_squared_error
+from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
 # StratifiedKFold should be used for classification problems
 # StratifiedKFold makes sure the fold has an equal representation of the classes
 from sklearn.model_selection import KFold
@@ -70,13 +70,13 @@ logger = logging_func(filepath=os.path.join(
 
 # ---- import data
 raw = pd.read_csv(os.path.join(
-    dat_dir, 'lstm_aec_phases_freq8.csv'), engine='python')
+    dat_dir, 'lstm_aec_phases_freq1.csv'), engine='python')
 raw.iloc[0:5, 0:5]
 y = np.array(raw.loc[:, 'PCL'])
 
 
 # ---- key variables
-n_features = 10
+n_features = 8
 n_folds = 10
 
 # ---- generate training and test sets with min-max normalization
@@ -100,32 +100,38 @@ trainingY.shape  # 29x1
 len(cv_train_idx[0])  # 26
 
 # ------ cross-validation modelling ------
-cv_m_ensemble, cv_m_history_ensemble, cv_m_test_rmse_ensemble = list(), list(), list()
+cv_m_ensemble, cv_m_history_ensemble, cv_m_test_rmse_ensemble, cv_m_test_rsq_ensemble = list(
+), list(), list(), list()
 for i in range(n_folds):
     fold_id = str(i+1)
     print('fold: ', fold_id)
     cv_train_X, cv_train_Y = trainingX[cv_train_idx[i]
                                        ], trainingY[cv_train_idx[i]]
     cv_test_X, cv_test_Y = trainingX[cv_test_idx[i]], trainingY[cv_test_idx[i]]
-    cv_m, cv_m_history, cv_m_test_rmse = lstm_cv_train(trainX=cv_train_X, trainY=cv_train_Y,
-                                                       testX=cv_test_X, testY=cv_test_Y,
-                                                       lstm_model='simple',
-                                                       hidden_units=6, epochs=400, batch_size=29,
-                                                       plot=True,
-                                                       filepath=os.path.join(
-                                                           res_dir, 'cv_simple_loss_fold_'+fold_id+'.pdf'),
-                                                       plot_title=None,
-                                                       xlabel=None,
-                                                       ylabel=None,
-                                                       verbose=False)
+    cv_m, cv_m_history, cv_m_test_rmse, cv_m_test_rsq = lstm_cv_train(trainX=cv_train_X, trainY=cv_train_Y,
+                                                                      testX=cv_test_X, testY=cv_test_Y,
+                                                                      lstm_model='simple',
+                                                                      hidden_units=6, epochs=400, batch_size=29,
+                                                                      plot=True,
+                                                                      filepath=os.path.join(
+                                                                          res_dir, 'cv_simple_loss_fold_'+fold_id+'.pdf'),
+                                                                      plot_title=None,
+                                                                      xlabel=None,
+                                                                      ylabel=None,
+                                                                      verbose=False)
     cv_m_ensemble.append(cv_m)
     cv_m_history_ensemble.append(cv_m_history)
     cv_m_test_rmse_ensemble.append(cv_m_test_rmse)
+    cv_m_test_rsq_ensemble.append(cv_m_test_rsq)
 
 cv_rmse_mean = np.mean(cv_m_test_rmse_ensemble)
 cv_rmse_sem = np.std(cv_m_test_rmse_ensemble)/math.sqrt(n_folds)
+cv_rsq_mean = np.mean(cv_m_test_rsq_ensemble)
+cv_rsq_sem = np.std(cv_m_test_rsq_ensemble)/math.sqrt(n_folds)
 cv_rmse_mean  # 0.343
 cv_rmse_sem  # 0.037
+cv_rsq_mean
+cv_rsq_sem
 
 
 # ------ prediction ------
@@ -161,20 +167,30 @@ trainingY_conv, testY_conv = inverse_norm_y(training_y=trainingY,
 # test_rmse_mean = np.mean(test_rmse)  # 0.227
 # test_rmse_sem = np.std(test_rmse)/math.sqrt(n_folds)
 
-# below: calcuate RMSE (final, i.e. on the test data) using inversed y and yhat
+# below: calcuate RMSE and R2 (final, i.e. on the test data) using inversed y and yhat
 # this RMSE is the score to report
-rmse_yhats = list()
+rmse_yhats, rsq_yhats = list(), list()
 for yhat_testX in yhats_testX:
     _, yhat_testX_conv = inverse_norm_y(
         training_y=yhats_trainingX_mean, test_y=yhat_testX, scaler=scaler_Y)
     rmse_yhat = math.sqrt(mean_squared_error(
         y_true=testY_conv, y_pred=yhat_testX_conv))
+    rsq_yhat = r2_score(y_true=testY_conv, y_pred=yhat_testX_conv)
     rmse_yhats.append(rmse_yhat)
+    rsq_yhats.append(rsq_yhat)
 rmse_yhats = np.array(rmse_yhats)
 rmse_yhats_mean = np.mean(rmse_yhats)
 rmse_yhats_sem = np.std(rmse_yhats)/math.sqrt(n_folds)
-rmse_yhats_mean  # 36.3
-rmse_yhats_sem  # 2.79
+rmse_yhats_mean
+rmse_yhats_sem
+
+rsq_yhats = np.array(rsq_yhats)
+rsq_yhats_mean = np.mean(rsq_yhats)
+rsq_yhats_sem = np.std(rsq_yhats)/math.sqrt(n_folds)
+rsq_yhats
+rsq_yhats_mean
+rsq_yhats_sem
+
 
 # ------ plot testing ------
 y = np.concatenate([trainingY, testY])

@@ -8,7 +8,7 @@ import math
 import numpy as np
 import pandas as pd
 from keras.utils import to_categorical
-from sklearn.metrics import accuracy_score, mean_squared_error
+from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
 # StratifiedKFold should be used for classification problems
 # StratifiedKFold makes sure the fold has an equal representation of the classes
 from sklearn.model_selection import KFold
@@ -148,7 +148,7 @@ def lstm_cv_train(trainX, trainY, testX, testY,
         **kwargs: keyword arguments passed to the plot function epochs_loss_plot().
 
     # Return:
-        A compiled LSTM model object, its modelling history, as well as the evaluation (on the hold-off fold) results
+        A compiled LSTM model object, its modelling history, as well as the evaluation RMSE and R2 (on the hold-off fold) results
 
     # Details:
         This function trains and evaluates single LSTM model. Thus, the function is used as an
@@ -201,12 +201,15 @@ def lstm_cv_train(trainX, trainY, testX, testY,
         # only returns mse for regression
         eval_res = m.evaluate(testX, testY, verbose=verbose)
         eval_res = math.sqrt(eval_res)  # rmse
+        yhat_res = m.pred(testX)
+        rsq = r2_score(testY, yhat_res)
     else:
         # below returns loss and acc. we only capture acc
         _, eval_res = m.evaluate(testX, testY, verbose=verbose)
+        rsq = None
 
     # return
-    return m, m_history, eval_res
+    return m, m_history, eval_res, rsq
 
 
 def idx_func(input, n_features, Y_colnames, remove_colnames, n_folds=10, random_state=None):
