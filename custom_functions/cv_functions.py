@@ -201,7 +201,7 @@ def lstm_cv_train(trainX, trainY, testX, testY,
         # only returns mse for regression
         eval_res = m.evaluate(testX, testY, verbose=verbose)
         eval_res = math.sqrt(eval_res)  # rmse
-        yhat_res = m.pred(testX)
+        yhat_res = m.predict(testX)
         rsq = r2_score(testY, yhat_res)
     else:
         # below returns loss and acc. we only capture acc
