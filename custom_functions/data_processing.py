@@ -18,7 +18,10 @@ from sklearn.preprocessing import MinMaxScaler
 
 
 # ------ functions ------
-def training_test_spliter(data, training_percent=0.8, random_state=None,
+def training_test_spliter(data,
+                          training_percent=0.8, random_state=None,
+                          man_split=False, man_split_colname=None,
+                          man_split_testset_value=None,
                           min_max_scaling=False, scale_column_as_y=None,
                           scale_column_to_exclude=None, scale_range=(0, 1)):
     """
@@ -33,6 +36,9 @@ def training_test_spliter(data, training_percent=0.8, random_state=None,
 
     # Arguments:
         data: Pnadas DataFrame. Input data.
+        man_split: boolean. If to manually split the data into training/test sets.
+        man_split_colname: string. Set only when fixed_split=True, the variable name for the column to use for manual splitting.
+        man_split_testset_value: list. Set only when fixed_split=True, the splitting variable values for test set.
         training_percent: float. percentage of the full data to be the training
         random_state: int. seed for resampling RNG
         min_max_scaling: boolean. if to do a Min_Max scaling to the data
@@ -48,6 +54,19 @@ def training_test_spliter(data, training_percent=0.8, random_state=None,
     if not all(isinstance(scale_list, list) for scale_list in [scale_column_as_y, scale_column_to_exclude]):
         raise ValueError(
             'scale_column_as_y and scale_column_to_exclude need to be list.')
+    if man_split:
+        if (not man_split_colname) or (not man_split_testset_value):
+            raise ValueError(
+                'set man_split_colname and man_split_testset_value when man_split=True.')
+        else:
+            if not isinstance(man_split_colname, str):
+                raise ValueError('man_split_colname needs to be a string.')
+            if not isinstance(man_split_testset_value, list):
+                raise ValueError(
+                    'man_split_colvaue needs to be a list.')
+            if not all(test_value in list(data[man_split_colname]) for test_value in man_split_testset_value):
+                raise ValueError(
+                    'One or all man_split_test_value missing from the splitting variable.')
 
     # set the variables
     scaler_X, scaler_Y = None, None
@@ -72,8 +91,16 @@ def training_test_spliter(data, training_percent=0.8, random_state=None,
                 'Not all columns are found in the input DataFrame. Proceed without normalization\n')
 
     # split the data
-    training = data.sample(frac=training_percent, random_state=random_state)
-    test = data.iloc[~data.index.isin(training.index), :]
+    if man_split:
+        training = data.loc[~data[man_split_colname].isin(
+            man_split_testset_value), :]
+        test = data.loc[data[man_split_colname].isin(
+            man_split_testset_value), :]
+    else:
+        training = data.sample(frac=training_percent,
+                               random_state=random_state)
+        test = data.iloc[~data.index.isin(training.index), :]
+
     return training, test, scaler_X, scaler_Y
 
 
