@@ -33,7 +33,7 @@ class regression_lstm_cv(object):
         """
         # Behaviour
             To initialize data for CV processes by setting up training and test datasets, 
-            as wel as the scalers (as private attributes) for min/max scaling.
+            as wel as the scalers (as private attributes) for min/max scaling. 
 
         # Arugments
             (*arg, **kwargs: arguments for training_test_spliter function.)

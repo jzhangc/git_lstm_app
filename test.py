@@ -20,7 +20,8 @@ from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
                                            lstm_cv_train, lstm_ensemble_eval,
                                            lstm_ensemble_predict)
 from custom_functions.data_processing import (inverse_norm_y,
-                                              training_test_spliter)
+                                              training_test_spliter,
+                                              training_test_spliter_new)
 from custom_functions.plot_functions import y_yhat_plot
 from custom_functions.util_functions import logging_func
 
@@ -70,12 +71,12 @@ logger = logging_func(filepath=os.path.join(
 
 # ---- import data
 raw = pd.read_csv(os.path.join(
-    dat_dir, 'lstm_aec_phases_freq6_new.csv'), engine='python')
+    dat_dir, 'lstm_aec_phases_freq1_new.csv'), engine='python')
 raw.iloc[0:5, 0:5]
 y = np.array(raw.loc[:, 'PCL'])
 
 # ---- key variable
-n_features = 12
+n_features = 5
 n_folds = 10
 
 # ---- generate training and test sets with min-max normalization
@@ -101,7 +102,7 @@ training, test, scaler_X, scaler_Y = training_test_spliter(
 
 # beta
 training, test, scaler_X, scaler_Y = training_test_spliter(
-    data=raw, man_split=True, man_split_colname='subject', man_split_testset_value=['PN09', 'PN14', 'PP20'],
+    data=raw, man_split=True, man_split_colname='subject', man_split_testset_value=['PN08', 'PN13', 'PP13'],
     min_max_scaling=True,
     scale_column_as_y=['PCL'],
     scale_column_to_exclude=['subject', 'PCL', 'group'])
@@ -135,6 +136,14 @@ training, test, scaler_X, scaler_Y = training_test_spliter(
     scale_column_to_exclude=['subject', 'PCL', 'group'])
 
 
+# new spliting
+training, test, training_scaler_Y, test_scaler_Y = training_test_spliter_new(
+    data=raw, man_split=True, man_split_colname='subject', man_split_testset_value=['PN14', 'PN27', 'PP13'],
+    min_max_scaling=True,
+    scale_column_as_y=['PCL'],
+    scale_column_to_exclude=['subject', 'PCL', 'group'])
+
+
 # procesing
 trainingX, trainingY = longitudinal_cv_xy_array(input=training, Y_colnames=['PCL'],
                                                 remove_colnames=['subject', 'group'], n_features=n_features)
@@ -145,7 +154,7 @@ testX, testY = longitudinal_cv_xy_array(input=test, Y_colnames=['PCL'],
 # _, testY = inverse_norm_y(training_y=trainingY, test_y=testY, scaler=scaler_Y)
 # ---- test k-fold data sampling
 cv_train_idx, cv_test_idx = idx_func(input=training, n_features=n_features, Y_colnames=['PCL'],
-                                     remove_colnames=['subject', 'group'], n_folds=n_folds, random_state=21)
+                                     remove_colnames=['subject', 'group'], n_folds=n_folds, random_state=5)
 
 trainingX.shape  # n_samples x n_timepoints x n_features
 trainingY.shape  # 29x1
@@ -180,38 +189,52 @@ cv_rmse_mean = np.mean(cv_m_test_rmse_ensemble)
 cv_rmse_sem = np.std(cv_m_test_rmse_ensemble)/math.sqrt(n_folds)
 cv_rsq_mean = np.mean(cv_m_test_rsq_ensemble)
 cv_rsq_sem = np.std(cv_m_test_rsq_ensemble)/math.sqrt(n_folds)
+cv_m_test_rmse_ensemble
 cv_rmse_mean
 cv_rmse_sem
-cv_m_test_rmse_ensemble
+
 cv_m_test_rsq_ensemble
 cv_rsq_mean
 cv_rsq_sem
 
 # ------ prediction ------
+# also features: inverse the predictions from normalized values to PCLs
 # prediction for 20% test subjests
 yhats_testX = lstm_ensemble_predict(
     models=cv_m_ensemble, n_members=len(cv_m_ensemble), testX=testX)
 # below: anix=0 means "along the row, by column"
 yhats_testX_mean = np.mean(yhats_testX, axis=0)
-yhats_testX_std = np.std(yhats_testX, axis=0)
+yhats_testX_pred = test_scaler_Y.inverse_transform(
+    yhats_testX_mean)   # converted back
+yhats_testX_conv = [test_scaler_Y.inverse_transform(
+    ary) for ary in yhats_testX]
+yhats_testX_conv = np.array(yhats_testX_conv)
+yhats_testX_std = np.std(yhats_testX_conv, axis=0)
 yhats_testX_sem = yhats_testX_std/math.sqrt(n_folds)
 
 # prediction for 80% test subjests
 yhats_trainingX = lstm_ensemble_predict(
     models=cv_m_ensemble, n_members=len(cv_m_ensemble), testX=trainingX)
 yhats_trainingX_mean = np.mean(yhats_trainingX, axis=0)
-yhats_trainingX_std = np.std(yhats_trainingX, axis=0)
+yhats_trainingX_pred = training_scaler_Y.inverse_transform(
+    yhats_trainingX_mean)   # converted back
+yhats_trainingX_conv = [training_scaler_Y.inverse_transform(
+    ary) for ary in yhats_trainingX]
+yhats_trainingX_conv = np.array(yhats_trainingX_conv)
+yhats_trainingX_std = np.std(yhats_trainingX_conv, axis=0)
 yhats_trainingX_sem = yhats_trainingX_std/math.sqrt(n_folds)
 
-# inverse the predictions from normalized values to PCLs
-yhats_trainingX_pred, yhats_testX_pred = inverse_norm_y(
-    training_y=yhats_trainingX_mean, test_y=yhats_testX_mean, scaler=scaler_Y)
-yhats_trainingX_std, yhats_testX_std = inverse_norm_y(
-    training_y=yhats_trainingX_std, test_y=yhats_testX_std, scaler=scaler_Y)
-yhats_trainingX_sem, yhats_testX_sem = inverse_norm_y(
-    training_y=yhats_trainingX_sem, test_y=yhats_testX_sem, scaler=scaler_Y)
-trainingY_conv, testY_conv = inverse_norm_y(training_y=trainingY,
-                                            test_y=testY, scaler=scaler_Y)
+testY_conv = test_scaler_Y.inverse_transform(testY)
+
+# BELOW: OLD and useless for now
+# yhats_trainingX_pred, yhats_testX_pred = inverse_norm_y(
+#     training_y=yhats_trainingX_mean, test_y=yhats_testX_mean, scaler=scaler_Y)
+# yhats_trainingX_std, yhats_testX_std = inverse_norm_y(
+#     training_y=yhats_trainingX_std, test_y=yhats_testX_std, scaler=scaler_Y)
+# yhats_trainingX_sem, yhats_testX_sem = inverse_norm_y(
+#     training_y=yhats_trainingX_sem, test_y=yhats_testX_sem, scaler=scaler_Y)
+# trainingY_conv, testY_conv = inverse_norm_y(training_y=trainingY,
+#                                             test_y=testY, scaler=scaler_Y)
 
 # ------ eval ------
 # test_rmse = lstm_ensemble_eval(models=cv_m_ensemble, n_members=len(cv_m_ensemble),
@@ -224,46 +247,55 @@ trainingY_conv, testY_conv = inverse_norm_y(training_y=trainingY,
 # this RMSE is the score to report
 rmse_yhats, rsq_yhats = list(), list()
 for yhat_testX in yhats_testX:
-    _, yhat_testX_conv = inverse_norm_y(
-        training_y=yhats_trainingX_mean, test_y=yhat_testX, scaler=scaler_Y)
+    # _, yhat_testX_conv = inverse_norm_y(
+    #     training_y=yhats_trainingX_mean, test_y=yhat_testX, scaler=scaler_Y)
+    yhat_testX_conv = test_scaler_Y.inverse_transform(yhat_testX)
     rmse_yhat = math.sqrt(mean_squared_error(
         y_true=testY_conv, y_pred=yhat_testX_conv))
     rsq_yhat = r2_score(y_true=testY_conv, y_pred=yhat_testX_conv)
     rmse_yhats.append(rmse_yhat)
     rsq_yhats.append(rsq_yhat)
+
 rmse_yhats = np.array(rmse_yhats)
-
-
 rmse_yhats_mean = np.mean(rmse_yhats)
 rmse_yhats_sem = np.std(rmse_yhats)/math.sqrt(n_folds)
+rmse_yhats
 rmse_yhats_mean
 rmse_yhats_sem
 
 rsq_yhats = np.array(rsq_yhats)
-
-
 rsq_yhats_mean = np.mean(rsq_yhats)
 rsq_yhats_sem = np.std(rsq_yhats)/math.sqrt(n_folds)
+
 rsq_yhats
 rsq_yhats_mean
 rsq_yhats_sem
 
 # ------ plot testing ------
-y = np.concatenate([trainingY, testY])
-y_true = scaler_Y.inverse_transform(y.reshape(y.shape[0], 1))
-y_true = y_true.reshape(y_true.shape[0], )
+y = np.concatenate([training_scaler_Y.inverse_transform(
+    trainingY), test_scaler_Y.inverse_transform(testY)])
+# y = np.concatenate([trainingY, testY])
+# y_true = scaler_Y.inverse_transform(y.reshape(y.shape[0], 1))
+y_true = y.reshape(y.shape[0], )
+yhats_trainingX_pred = yhats_trainingX_pred.reshape(
+    yhats_trainingX_pred.shape[0], )
+yhats_trainingX_std = yhats_trainingX_std.reshape(
+    yhats_trainingX_std.shape[0], )
+yhats_trainingX_sem = yhats_trainingX_sem.reshape(
+    yhats_trainingX_sem.shape[0], )
+yhats_testX_pred = yhats_testX_pred.reshape(yhats_testX_pred.shape[0], )
+yhats_testX_std = yhats_testX_std.reshape(yhats_testX_std.shape[0], )
+yhats_testX_sem = yhats_testX_sem.reshape(yhats_testX_sem.shape[0], )
 
-y_yhat_plot(filepath=os.path.join(res_dir, 'new_freq6_cv_plot_scatter.pdf'),
+y_yhat_plot(filepath=os.path.join(res_dir, 'new_freq1_cv_plot_scatter.pdf'),
             y_true=y_true,
             training_yhat=yhats_trainingX_pred,
-            training_yhat_err=yhats_trainingX_sem,
+            training_yhat_err=yhats_trainingX_std,
             test_yhat=yhats_testX_pred,
-            test_yhat_err=yhats_testX_sem,
+            test_yhat_err=yhats_testX_std,
             plot_title='Cross-validation prediction',
             ylabel='PCL', xlabel='Subjects', plot_type='scatter',
             bar_width=0.25)
 
 
 # ------ true test realm ------
-trainingX.shape  # 29, 2, 10
-testX.shape  # 3, 2, 10

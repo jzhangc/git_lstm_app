@@ -24,7 +24,7 @@ def simple_lstm_m(n_steps, n_features, n_output=1, hidden_units=50, loss='mean_s
     Purpose:
         LSTM model function for RNN with only one hidden layer (aka simple)
 
-    Arguments:
+    Arguments: 
         n_steps: number of "time points"
         n_features: number of input features
         n_output: number of output
