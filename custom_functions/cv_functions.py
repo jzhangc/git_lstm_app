@@ -21,14 +21,18 @@ from custom_functions.plot_functions import epochs_plot
 
 
 # ------ functions ------
-def lstm_ensemble_eval(models, n_members, testX, testY, outcome_type='regression'):
+def lstm_ensemble_eval(testX, testY, models, model_index=None, outcome_type='regression'):
     """
     # Purpose:
         The function evaluates a subset of models from the CV model ensemble
 
     # Arguments:
+        testX: numpy array. The input data for model evaluation. 
+            Make sure to have the same variable shape as the training data
+        testY: numpy array. The true outpout data for evaluation.
         models: list. CV model ensemble
-        n_members: int. The first n number of models
+        model_index: list of int. The integer index for models to use from the ensemble. 
+            Uses all the mdoels if not specified.
         outcome_type: string. The outcome type of the study, 'regression' or 'classification'
 
     # Return
@@ -38,7 +42,12 @@ def lstm_ensemble_eval(models, n_members, testX, testY, outcome_type='regression
         The length of the list will be the number of the models in the model ensemble
     """
     # subsetting model ensemble
-    subset = models[:n_members]
+    if model_index:
+        if not isinstance(model_index, list):
+            raise TypeError("model_index needs to be a list.")
+        subset = list(models[i] for i in model_index)
+    else:
+        subset = models
 
     # prediction
     yhats = lstm_ensemble_predict(
@@ -54,15 +63,16 @@ def lstm_ensemble_eval(models, n_members, testX, testY, outcome_type='regression
     return res
 
 
-def lstm_ensemble_predict(models, n_members, testX, outcome_type='regression'):
+def lstm_ensemble_predict(testX, models, model_index=None, outcome_type='regression'):
     """
     # Purpose:
         Make predictions using an ensemble of lstm models.
 
-    # Arguments:
-        models: list. a list of lstm models
-        n_members: int. The first n number of models
+    # Arguments:       
         testX: np.ndarray. test X. Needs to be a numpy ndarray object.
+        models: list. a list of lstm models
+        model_index: list of int. The integer index for models to use from the ensemble. 
+            Uses all the mdoels if not specified. 
         outcome_type: string. the outcome type of the study, 'regression' or 'classification'
 
     # Reture:
@@ -104,7 +114,14 @@ def lstm_ensemble_predict(models, n_members, testX, outcome_type='regression'):
         raise NpArrayShapeError("testX needs to be in 3D shape.")
 
     # testX
-    active_models = models[:n_members]
+    # active_models = models[:n_members]
+    if model_index:
+        if not isinstance(model_index, list):
+            raise TypeError("model_index needs to be a list.")
+        active_models = list(models[i] for i in model_index)
+    else:
+        active_models = models
+
     yhats = [m.predict(testX) for m in active_models]
     yhats = np.array(yhats)
 

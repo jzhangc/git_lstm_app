@@ -172,7 +172,7 @@ for i in range(n_folds):
     cv_m, cv_m_history, cv_m_test_rmse, cv_m_test_rsq = lstm_cv_train(trainX=cv_train_X, trainY=cv_train_Y,
                                                                       testX=cv_test_X, testY=cv_test_Y,
                                                                       lstm_model='simple',
-                                                                      hidden_units=6, epochs=400, batch_size=29,
+                                                                      hidden_units=2, epochs=800, batch_size=29,
                                                                       output_actvation='sigmoid',
                                                                       plot=True,
                                                                       filepath=os.path.join(
@@ -205,9 +205,10 @@ yhats_testX = lstm_ensemble_predict(
     models=cv_m_ensemble, n_members=len(cv_m_ensemble), testX=testX)
 # below: anix=0 means "along the row, by column"
 yhats_testX_mean = np.mean(yhats_testX, axis=0)
-yhats_testX_pred = test_scaler_Y.inverse_transform(
+# NOTE: below: real world utility only uses training scalers
+yhats_testX_pred = training_scaler_Y.inverse_transform(
     yhats_testX_mean)   # converted back
-yhats_testX_conv = [test_scaler_Y.inverse_transform(
+yhats_testX_conv = [training_scaler_Y.inverse_transform(
     ary) for ary in yhats_testX]
 yhats_testX_conv = np.array(yhats_testX_conv)
 yhats_testX_std = np.std(yhats_testX_conv, axis=0)
@@ -247,10 +248,10 @@ testY_conv = test_scaler_Y.inverse_transform(testY)
 # below: calcuate RMSE and R2 (final, i.e. on the test data) using inversed y and yhat
 # this RMSE is the score to report
 rmse_yhats, rsq_yhats = list(), list()
-for yhat_testX in yhats_testX:
+for yhat_testX in yhats_testX:  # NOTE: below: real world utility only uses training scalers
     # _, yhat_testX_conv = inverse_norm_y(
     #     training_y=yhats_trainingX_mean, test_y=yhat_testX, scaler=scaler_Y)
-    yhat_testX_conv = test_scaler_Y.inverse_transform(yhat_testX)
+    yhat_testX_conv = training_scaler_Y.inverse_transform(yhat_testX)
     rmse_yhat = math.sqrt(mean_squared_error(
         y_true=testY_conv, y_pred=yhat_testX_conv))
     rsq_yhat = r2_score(y_true=testY_conv, y_pred=yhat_testX_conv)
@@ -300,3 +301,4 @@ y_yhat_plot(filepath=os.path.join(res_dir, 'new_freq1_cv_plot_scatter.pdf'),
 
 
 # ------ true test realm ------
+list(cv_m_ensemble[i] for i in list(range(len(cv_m_ensemble))))
