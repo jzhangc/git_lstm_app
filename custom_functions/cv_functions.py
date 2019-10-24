@@ -123,6 +123,7 @@ def lstm_cv_train(trainX, trainY, testX, testY,
                   lstm_model='simple', study_type='n_to_one', outcome_type='regression',
                   hidden_units=50,
                   epochs=200, batch_size=16,
+                  output_actvation='linear',
                   loss='mean_squared_error',
                   optimizer='adam',
                   plot=False, verbose=False, **kwargs):
@@ -141,6 +142,8 @@ def lstm_cv_train(trainX, trainY, testX, testY,
         hidden_units: int. number of hidden units in the first layer.
         epochs: int. number of epochs to use for LSTM modelling.
         batch_size: int. batch size for each modelling iteration.
+        output_activation: string. activation for the output layer, 
+                            following the keras Dense() activation argument.
         loss: name of the loss function.
         optimizer: name of the optimization function.
         plot: boolean. if to plot the loss per epochs.
@@ -152,7 +155,8 @@ def lstm_cv_train(trainX, trainY, testX, testY,
 
     # Details:
         This function trains and evaluates single LSTM model. Thus, the function is used as an
-        intermediate functioin for evaluting ensemble models from k-fold CV.
+            intermediate functioin for evaluting ensemble models from k-fold CV.
+        The output_action function "sigmoid" can be used for the min-max scaled data to (0, 1)
         NOTE: the function might not work for classification: TO BE TESTED
     """
     # argument check
@@ -179,12 +183,16 @@ def lstm_cv_train(trainX, trainY, testX, testY,
         if lstm_model == 'simple':
             m = simple_lstm_m(n_steps=n_timepoints, n_features=n_features,
                               hidden_units=hidden_units, n_output=1,
+                              output_activation=output_actvation,
                               loss=loss, optimizer=optimizer)
         elif lstm_model == 'stacked':
             m = stacked_lstm_m(n_steps=n_timepoints, n_features=n_features,
-                               hidden_units=hidden_units, loss=loss, optimizer=optimizer)
+                               hidden_units=hidden_units,
+                               output_actvation=output_actvation,
+                               loss=loss, optimizer=optimizer)
         elif lstm_model == 'bidirectional':
             m = bidirectional_lstm_m(n_steps=n_timepoints, n_features=n_features, hidden_units=hidden_units,
+                                     output_actvation=output_actvation,
                                      loss=loss, optimizer=optimizer)
 
     m_history = m.fit(x=trainX, y=trainY, epochs=epochs,

@@ -173,6 +173,7 @@ for i in range(n_folds):
                                                                       testX=cv_test_X, testY=cv_test_Y,
                                                                       lstm_model='simple',
                                                                       hidden_units=6, epochs=400, batch_size=29,
+                                                                      output_actvation='sigmoid',
                                                                       plot=True,
                                                                       filepath=os.path.join(
                                                                           res_dir, 'cv_simple_loss_fold_'+fold_id+'.pdf'),

@@ -19,96 +19,114 @@ from matplotlib import pyplot as plt  # to plot ROC-AUC
 
 
 # ------ functions ------
-def simple_lstm_m(n_steps, n_features, n_output=1, hidden_units=50, loss='mean_squared_error', optimizer='adam'):
+def simple_lstm_m(n_steps, n_features, n_output=1, hidden_units=50,
+                  output_activation="linear", loss='mean_squared_error', optimizer='adam'):
     """
     Purpose:
         LSTM model function for RNN with only one hidden layer (aka simple)
 
     Arguments: 
-        n_steps: number of "time points"
-        n_features: number of input features
-        n_output: number of output
-        hidden_unit: number of hidden unit
-        loss: type of loss function
-        optimizer: type of optimizer
+        n_steps: int. number of "time points"
+        n_features: int. number of input features
+        n_output: int. number of output
+        hidden_unit: int. number of hidden unit
+        output_activation: string. activation for the output layer, 
+                            following the keras Dense() activation argument.
+        loss: string. type of loss function
+        optimizer: string. type of optimizer
 
     Details:
-        the inpout data should have three dimensions: [sample, time points, features]
+        The inpout data should have three dimensions: [sample, time points, features]
+        The output_action function "sigmoid" can be used for the min-max scaled data to (0, 1)
     """
     m = Sequential()
     m.add(LSTM(units=hidden_units, activation='relu',
                input_shape=(n_steps, n_features)))
-    m.add(Dense(units=n_output))
+    m.add(Dense(units=n_output, activation=output_activation))
     m.compile(loss=loss, optimizer=optimizer)  # regression study
     return m
 
 
-def bidirectional_lstm_m(n_steps, n_features, n_output=1, hidden_units=50, loss='mean_squared_error', optimizer='adam'):
+def bidirectional_lstm_m(n_steps, n_features, n_output=1, hidden_units=50,
+                         output_activation='linear', loss='mean_squared_error', optimizer='adam'):
     """
     Purpose:
         LSTM modle function for RNN with bidirectional structure
 
     Arguments:
-        n_steps: number of "time points"
-        n_features: number of input features
-        n_output: number of output
-        hidden_unit: number of hidden unit
-        loss: type of loss function
-        optimizer: type of optimizer
+        n_steps: int. number of "time points"
+        n_features: int. number of input features
+        n_output: int. number of output
+        hidden_unit: int. number of hidden unit
+        output_activation: string. activation for the output layer, 
+                    following the keras Dense() activation argument.
+        loss: string. type of loss function
+        optimizer: string. type of optimizer
 
     Details:
-    This function requires importing of keras.layers.Bidirectional
+        This function requires importing of keras.layers.Bidirectional.
+        The output_action function "sigmoid" can be used for the min-max scaled data to (0, 1)
+
     """
     m = Sequential()
     m.add(Bidirectional(LSTM(units=hidden_units, activation='relu',
                              input_shape=(n_steps, n_features))))
-    m.add(Dense(units=n_output))
+    m.add(Dense(units=n_output, activation=output_activation))
     m.compile(loss=loss, optimizer='adam')
     return m
 
 
-def stacked_lstm_m(n_steps, n_features, n_output=1, hidden_units=50, loss='mean_squared_error', optimizer='adam'):
+def stacked_lstm_m(n_steps, n_features, n_output=1, hidden_units=50,
+                   output_activation='linear', loss='mean_squared_error', optimizer='adam'):
     """
     Purpose:
         LSTM model function for RNN with stacked hidden layers
 
     Arguments:
-        n_steps: number of "time points"
-        n_features: number of input features
-        n_output: number of output
-        hidden_unit: number of hidden unit
-        loss: type of loss function
-        optimizer: type of optimizer
+        n_steps: int. number of "time points"
+        n_features: int. number of input features
+        n_output: int. number of output
+        hidden_unit: int. number of hidden unit
+        output_activation: string. activation for the output layer, 
+            following the keras Dense() activation argument.
+        loss: string. type of loss function
+        optimizer: string. type of optimizer
 
     Details:
         Currently the function has two hidden layers
+        The output_action function "sigmoid" can be used for the min-max scaled data to (0, 1)
     """
     m = Sequential()
     m.add(LSTM(units=hidden_units, activation='relu', return_sequences=True,
                input_shape=(n_steps, n_features)))
     m.add(LSTM(units=hidden_units, activation='relu'))
-    m.add(Dense(units=n_output))
+    m.add(Dense(units=n_output, activation=output_activation))
     m.compile(loss='mse', optimizer=optimizer)  # regression study
     return m
 
 
 def encoder_decoder_lstm_m(n_steps, n_features, n_output=1,
-                           n_dense_out=1, hidden_units=50, loss='mean_squared_error', optimizer='adam'):
+                           n_dense_out=1, hidden_units=50,
+                           output_avtivation='linear', loss='mean_squared_error', optimizer='adam'):
     """
     Purpose:
         LSTM model function for encoder-decoder models for time series
 
     Arguments:
-        n_steps: number of "time points"
-        n_features: number of input features
-        n_output: number of output
-        hidden_unit: number of hidden unit
-        loss: type of loss function
-        optimizer: type of optimizer
+        n_steps: int. number of "time points"
+        n_features: int. number of input features
+        n_output: int. number of output
+        hidden_unit: int. number of hidden unit
+        output_activation: string. activation for the output layer, 
+            following the keras Dense() activation argument.
+        loss: string. type of loss function
+        optimizer: string. type of optimizer
 
     Details;
         The encoder is traditionally a Vanilla LSTM model, although other 
         encoder models can be used such as Stacked, Bidirectional, and CNN models.
+        The output_action function "sigmoid" can be used for the min-max scaled data to (0, 1)
+
     """
     m = Sequential()
     m.add(LSTM(units=hidden_units, activation='relu',
@@ -116,23 +134,26 @@ def encoder_decoder_lstm_m(n_steps, n_features, n_output=1,
     m.add(RepeatVector(n=n_output))
     m.add(LSTM(units=hidden_units, activation='relu',
                return_sequences=True))  # decoder
-    m.add(TimeDistributed(Dense(units=n_dense_out)))
+    m.add(TimeDistributed(Dense(units=n_dense_out, activation=output_avtivation)))
     m.compile(loss=loss, optimizer='adam')
     return m
 
 
-def cnn_lstm_m(n_steps, n_features, n_output=1, hidden_units=50, loss='mean_squared_error', optimizer='adam'):
+def cnn_lstm_m(n_steps, n_features, n_output=1, hidden_units=50,
+               outpout_activiation='linear', loss='mean_squared_error', optimizer='adam'):
     """
     Purpose:
         LSTM model function for CNN-RNN hybrid model. 
 
     Arguments:
-        n_steps: number of "time points"
-        n_features: number of input features
-        n_output: number of output
-        hidden_unit: number of hidden unit
-        loss: type of loss function
-        optimizer: type of optimizer
+        n_steps: int. number of "time points"
+        n_features: int. number of input features
+        n_output: int. number of output
+        hidden_unit: int. number of hidden unit
+        output_activation: string. activation for the output layer, 
+            following the keras Dense() activation argument.
+        loss: string. type of loss function
+        optimizer: string. type of optimizer
 
 
     Details:
@@ -165,6 +186,8 @@ def cnn_lstm_m(n_steps, n_features, n_output=1, hidden_units=50, loss='mean_squa
         The input X needs to be reshaped into:
         (sample x filter size x timpoints per filter size x n_features)
         before fitting
+
+        The output_action function "sigmoid" can be used for the min-max scaled data to (0, 1)
     """
     m = Sequential()
     m.add(TimeDistributed(Conv1D(filters=64, kernel_size=1,
