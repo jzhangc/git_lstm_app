@@ -1,21 +1,20 @@
 """
 This is a collection of functions for LSTM RNN practices
 """
-
-import logging
 # ------ libraries ------
+import logging
 import os
 
 import numpy as np
 import pandas as pd  # this is not needed as Keras needs numpy inputs for LSTM
 import tensorflow as tf
-from keras.layers import \
-    RepeatVector  # for CNN-related models; for encoder-decoder models
 from keras.layers import TimeDistributed  # for CNN and encoder-decoder models
-from keras.layers import LSTM, Bidirectional, ConvLSTM2D, Dense, Flatten
-from keras.layers.convolutional import Conv1D, MaxPooling1D
-from keras.models import Sequential
 from matplotlib import pyplot as plt  # to plot ROC-AUC
+# for CNN-related models; for encoder-decoder models
+from tensorflow.keras.layers import (LSTM, Bidirectional, Conv1D, ConvLSTM2D,
+                                     Dense, Flatten, MaxPooling1D,
+                                     RepeatVector)
+from tensorflow.keras.models import Sequential
 
 
 # ------ functions ------

@@ -9,7 +9,7 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from sklearn.metrics import auc, roc_curve  # calculate ROC-AUC
 from sklearn.preprocessing import MinMaxScaler
-from keras.callbacks import History  # for input argument type check
+from tensorflow.keras.callbacks import History  # for input argument type check
 
 # ------ functions ------
 
