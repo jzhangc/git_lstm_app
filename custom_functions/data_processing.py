@@ -25,7 +25,6 @@ def training_test_spliter(data,
                           min_max_scaling=False, scale_column_as_y=None,
                           scale_column_to_exclude=None, scale_range=(0, 1)):
     """
-    (to be deprecated)
     # Purpose:
         This funciton takes an pandas DataFrame, randomly resamples the data and
         split it into trianing and test data sets.

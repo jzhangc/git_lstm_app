@@ -70,12 +70,12 @@ logger = logging_func(filepath=os.path.join(
 
 # ---- import data
 raw = pd.read_csv(os.path.join(
-    dat_dir, 'lstm_aec_phases_freq1_new.csv'), engine='python')
+    dat_dir, 'lstm_aec_phases_freq7_new.csv'), engine='python')
 raw.iloc[0:5, 0:5]
 y = np.array(raw.loc[:, 'PCL'])
 
 # ---- key variable
-n_features = 5
+n_features = 10
 n_folds = 10
 
 # ---- generate training and test sets with min-max normalization
@@ -162,8 +162,9 @@ for i in range(n_folds):
     cv_test_X, cv_test_Y = trainingX[cv_test_idx[i]], trainingY[cv_test_idx[i]]
     cv_m, cv_m_history, cv_m_test_rmse, cv_m_test_rsq = lstm_cv_train(trainX=cv_train_X, trainY=cv_train_Y,
                                                                       testX=cv_test_X, testY=cv_test_Y,
-                                                                      lstm_model='simple',
-                                                                      hidden_units=6, epochs=400, batch_size=29,
+                                                                      lstm_model='stacked',
+                                                                      output_activation='sigmoid',
+                                                                      hidden_units=6, epochs=300, batch_size=29,
                                                                       plot=True,
                                                                       filepath=os.path.join(
                                                                           res_dir, 'cv_simple_loss_fold_'+fold_id+'.pdf'),
@@ -253,7 +254,7 @@ y = np.concatenate([trainingY, testY])
 y_true = scaler_Y.inverse_transform(y.reshape(y.shape[0], 1))
 y_true = y_true.reshape(y_true.shape[0], )
 
-y_yhat_plot(filepath=os.path.join(res_dir, 'new_freq1_cv_plot_scatter.pdf'),
+y_yhat_plot(filepath=os.path.join(res_dir, 'oldtest_freq2_cv_plot_scatter.pdf'),
             y_true=y_true,
             training_yhat=yhats_trainingX_pred,
             training_yhat_err=yhats_trainingX_sem,
@@ -265,5 +266,33 @@ y_yhat_plot(filepath=os.path.join(res_dir, 'new_freq1_cv_plot_scatter.pdf'),
 
 
 # ------ true test realm ------
-trainingX.shape  # 29, 2, 10
-testX.shape  # 3, 2, 10
+tst_test = np.array([scaler_Y.inverse_transform(ary) for ary in yhats_testX])
+tst_test_mean = np.mean(tst_test, axis=0)
+tst_test_mean = tst_test_mean.reshape(tst_test_mean.shape[0], )
+tst_test_std = np.std(tst_test, axis=0)
+tst_test_std = tst_test_std.reshape(tst_test_std.shape[0], )
+
+
+tst_training = np.array([scaler_Y.inverse_transform(ary)
+                         for ary in yhats_trainingX])
+tst_training_mean = np.mean(tst_training, axis=0)
+tst_training_mean = tst_training_mean.reshape(tst_training_mean.shape[0], )
+tst_training_std = np.std(tst_training, axis=0)
+tst_training_std = tst_training_std.reshape(tst_training_std.shape[0], )
+
+y_yhat_plot(filepath=os.path.join(res_dir, 'oldtest_freq7_cv_plot_scatter.pdf'),
+            y_true=y_true,
+            training_yhat=tst_training_mean,
+            training_yhat_err=tst_training_std,
+            test_yhat=tst_test_mean,
+            test_yhat_err=tst_test_std,
+            plot_title='Cross-validation prediction',
+            ylabel='PCL', xlabel='Subjects', plot_type='scatter',
+            bar_width=0.25)
+
+type(tst_training_mean)
+
+yhats_trainingX_pred.shape
+tst_training_mean.shape
+
+yhats_trainingX_sem.shape

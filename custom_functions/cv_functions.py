@@ -140,7 +140,7 @@ def lstm_cv_train(trainX, trainY, testX, testY,
                   lstm_model='simple', study_type='n_to_one', outcome_type='regression',
                   hidden_units=50,
                   epochs=200, batch_size=16,
-                  output_actvation='linear',
+                  output_activation='linear',
                   loss='mean_squared_error',
                   optimizer='adam',
                   plot=False, verbose=False, **kwargs):
@@ -200,16 +200,16 @@ def lstm_cv_train(trainX, trainY, testX, testY,
         if lstm_model == 'simple':
             m = simple_lstm_m(n_steps=n_timepoints, n_features=n_features,
                               hidden_units=hidden_units, n_output=1,
-                              output_activation=output_actvation,
+                              output_activation=output_activation,
                               loss=loss, optimizer=optimizer)
         elif lstm_model == 'stacked':
             m = stacked_lstm_m(n_steps=n_timepoints, n_features=n_features,
                                hidden_units=hidden_units,
-                               output_actvation=output_actvation,
+                               output_activation=output_activation,
                                loss=loss, optimizer=optimizer)
         elif lstm_model == 'bidirectional':
             m = bidirectional_lstm_m(n_steps=n_timepoints, n_features=n_features, hidden_units=hidden_units,
-                                     output_actvation=output_actvation,
+                                     output_activation=output_activation,
                                      loss=loss, optimizer=optimizer)
 
     m_history = m.fit(x=trainX, y=trainY, epochs=epochs,
