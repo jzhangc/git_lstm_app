@@ -8,12 +8,12 @@ import os
 import numpy as np
 import pandas as pd  # this is not needed as Keras needs numpy inputs for LSTM
 import tensorflow as tf
-from keras.layers import TimeDistributed  # for CNN and encoder-decoder models
+# from keras.layers import TimeDistributed  # for CNN and encoder-decoder models
 from matplotlib import pyplot as plt  # to plot ROC-AUC
 # for CNN-related models; for encoder-decoder models
 from tensorflow.keras.layers import (LSTM, Bidirectional, Conv1D, ConvLSTM2D,
                                      Dense, Flatten, MaxPooling1D,
-                                     RepeatVector)
+                                     RepeatVector, TimeDistributed)
 from tensorflow.keras.models import Sequential
 
 

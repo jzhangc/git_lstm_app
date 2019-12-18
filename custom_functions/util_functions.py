@@ -5,8 +5,6 @@ Utility functions
 import logging
 import pandas as pd
 import numpy as np
-from keras.models import Sequential, load_model
-from keras.layers import Dense, Dropout  # fully connnected layer
 from sklearn.metrics import roc_curve, auc  # calculate ROC-AUC
 from sklearn.preprocessing import MinMaxScaler
 from matplotlib import pyplot as plt  # to plot ROC-AUC

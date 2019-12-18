@@ -8,14 +8,13 @@ import os
 
 import numpy as np
 import pandas as pd
-from keras.callbacks import History  # for input argument type check
+# from keras.callbacks import History  # for input argument type check
 from matplotlib import pyplot as plt
 from sklearn.datasets.samples_generator import make_blobs
 from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
 # StratifiedKFold should be used for classification problems
 # StratifiedKFold makes sure the fold has an equal representation of the classes
-from sklearn.model_selection import KFold
-
+# from sklearn.model_selection import KFold
 from custom_functions.custom_exceptions import (NpArrayShapeError,
                                                 PdDataFrameTypeError)
 from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
@@ -28,33 +27,6 @@ from custom_functions.util_functions import logging_func
 
 
 # ------ test functions ------
-# NOTE: this should be a custom class
-def lstm_cv(input, Y_colnames, remove_colnames, n_features,
-            cv_n_folds=10,  cv_random_state=None,
-            lstm_mode="simple"):
-    """
-    # Purpose:
-        This is the main function for k-fold cross validation for LSTM RNN
-    # Arguments:
-        input
-        Y_colnames
-        remove_colnames
-        cv_n_folds
-        cv_random_state
-        lstm_mode
-    # Return
-        An ensemble of LSTM RNN models that can be used for ensemble prediction
-    """
-    # arugment checks
-    if not isinstance(input, pd.DataFrame):
-        raise PdDataFrameTypeError("Inoput needs to be a pandas DataFrame.")
-    if not isinstance(Y_colnames, list) or not isinstance(remove_colnames, list):
-        raise TypeError("Y_colnames and remove_colnames need to be list type.")
-
-    # set up the x y array data
-    X, Y = longitudinal_cv_xy_array(input=input, Y_colnames=Y_colnames,
-                                    remove_colnames=remove_colnames, n_features=n_features)
-    return None
 
 
 # ------ data processing ------
@@ -70,12 +42,12 @@ logger = logging_func(filepath=os.path.join(
 
 # ---- import data
 raw = pd.read_csv(os.path.join(
-    dat_dir, 'lstm_aec_phases_freq7_new.csv'), engine='python')
+    dat_dir, 'lstm_aec_phases_freq6_new.csv'), engine='python')
 raw.iloc[0:5, 0:5]
 y = np.array(raw.loc[:, 'PCL'])
 
 # ---- key variable
-n_features = 10
+n_features = 12
 n_folds = 10
 
 # ---- generate training and test sets with min-max normalization
@@ -241,8 +213,6 @@ rmse_yhats_mean
 rmse_yhats_sem
 
 rsq_yhats = np.array(rsq_yhats)
-
-
 rsq_yhats_mean = np.mean(rsq_yhats)
 rsq_yhats_sem = np.std(rsq_yhats)/math.sqrt(n_folds)
 rsq_yhats
@@ -280,7 +250,7 @@ tst_training_mean = tst_training_mean.reshape(tst_training_mean.shape[0], )
 tst_training_std = np.std(tst_training, axis=0)
 tst_training_std = tst_training_std.reshape(tst_training_std.shape[0], )
 
-y_yhat_plot(filepath=os.path.join(res_dir, 'oldtest_freq7_cv_plot_scatter.pdf'),
+y_yhat_plot(filepath=os.path.join(res_dir, 'oldtest_freq6_cv_plot_scatter.pdf'),
             y_true=y_true,
             training_yhat=tst_training_mean,
             training_yhat_err=tst_training_std,
@@ -289,10 +259,3 @@ y_yhat_plot(filepath=os.path.join(res_dir, 'oldtest_freq7_cv_plot_scatter.pdf'),
             plot_title='Cross-validation prediction',
             ylabel='PCL', xlabel='Subjects', plot_type='scatter',
             bar_width=0.25)
-
-type(tst_training_mean)
-
-yhats_trainingX_pred.shape
-tst_training_mean.shape
-
-yhats_trainingX_sem.shape

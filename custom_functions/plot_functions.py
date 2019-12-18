@@ -201,7 +201,7 @@ def y_yhat_plot(filepath, y_true,
                         label='training')
         ax.fill_between(x, test_yhat_plot-test_yhat_err_plot,
                         test_yhat_plot+test_yhat_err_plot, color='blue', alpha=0.2,
-                        label='test')
+                        label='validation')
     ax.set_title(plot_title, color='black')
     ax.set_xlabel(xlabel, fontsize=10, color='black')
     ax.set_ylabel(ylabel, fontsize=10, color='black')

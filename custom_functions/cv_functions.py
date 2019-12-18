@@ -7,11 +7,12 @@ import math
 
 import numpy as np
 import pandas as pd
-from keras.utils import to_categorical
+# from keras.utils import to_categorical
 from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
 # StratifiedKFold should be used for classification problems
 # StratifiedKFold makes sure the fold has an equal representation of the classes
 from sklearn.model_selection import KFold
+from tensorflow.keras.utils import to_categorical
 
 from custom_functions.custom_exceptions import (NpArrayShapeError,
                                                 PdDataFrameTypeError)
