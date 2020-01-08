@@ -1,8 +1,8 @@
 # Jing's stuff
+data
+results
 .DS_Store
 .vscode
-results
-data
 log
 
 # Byte-compiled / optimized / DLL files
