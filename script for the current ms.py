@@ -6,8 +6,7 @@ import os
 
 import numpy as np
 import pandas as pd
-import tensorflow
-from tensorflow.keras.callbacks import History  # for input argument type check
+from keras.callbacks import History  # for input argument type check
 from matplotlib import pyplot as plt
 from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
 # StratifiedKFold should be used for classification problems
@@ -20,7 +19,9 @@ from custom_functions.custom_exceptions import (NpArrayShapeError,
 from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
                                            lstm_cv_train, lstm_ensemble_eval,
                                            lstm_ensemble_predict)
-from custom_functions.data_processing import training_test_spliter_final
+from custom_functions.data_processing import (inverse_norm_y,
+                                              training_test_spliter,
+                                              training_test_spliter_new)
 from custom_functions.plot_functions import y_yhat_plot
 from custom_functions.util_functions import logging_func
 
@@ -41,22 +42,26 @@ logger = logging_func(filepath=os.path.join(log_dir, 'test.log'))
 
 # ---- import data
 raw = pd.read_csv(os.path.join(
-    dat_dir, 'lstm_aec_phases_freq1_new.csv'), engine='python')
+    dat_dir, 'lstm_aec_phases_freq2_new.csv'), engine='python')
 raw.iloc[0:5, 0:5]
-raw.shape
 
 # ---- key variable
-n_features = 5
+n_features = 15
 n_folds = 10
 
 # ---- generate training and test sets with min-max normalization
 # new spliting
-training, test, training_scaler_X, training_scaler_Y, test_scaler_Y = training_test_spliter_final(
+training, test, training_scaler_Y, test_scaler_Y = training_test_spliter_new(
+    data=raw,
+    min_max_scaling=True,
+    scale_column_as_y=['PCL'],
+    scale_column_to_exclude=['subject', 'PCL', 'group'])
+
+training, test, training_scaler_Y, test_scaler_Y = training_test_spliter_new(
     data=raw, man_split=True, man_split_colname='subject', man_split_testset_value=['PN10', 'PN27', 'PP10'],
-    x_standardization=True,
-    y_min_max_scaling=True,
-    x_scale_column_to_exclude=['subject', 'PCL', 'group'],
-    y_column_to_scale=['PCL'], y_scale_range=(0, 1))
+    min_max_scaling=True,
+    scale_column_as_y=['PCL'],
+    scale_column_to_exclude=['subject', 'PCL', 'group'])
 
 
 # procesing
@@ -64,6 +69,9 @@ trainingX, trainingY = longitudinal_cv_xy_array(input=training, Y_colnames=['PCL
                                                 remove_colnames=['subject', 'group'], n_features=n_features)
 testX, testY = longitudinal_cv_xy_array(input=test, Y_colnames=['PCL'],
                                         remove_colnames=['subject', 'group'], n_features=n_features)
+
+
+test_scaler_Y.inverse_transform(testY)
 
 # below: as an example for converting the normalized Y back to measured values
 # _, testY = inverse_norm_y(training_y=trainingY, test_y=testY, scaler=scaler_Y)

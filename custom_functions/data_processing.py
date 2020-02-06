@@ -9,13 +9,119 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt  # to plot ROC-AUC
 from sklearn.metrics import auc, roc_curve  # calculate ROC-AUC
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 # import tensorflow as tf
 # tf.logging.set_verbosity(tf.logging.ERROR)  # disable tensorflow ERROR message
 
 
 # ------ functions ------
+def training_test_spliter_final(data,
+                                training_percent=0.8, random_state=None,
+                                man_split=False, man_split_colname=None,
+                                man_split_testset_value=None,
+                                x_standardization=True,
+                                x_scale_column_to_exclude=None,
+                                y_min_max_scaling=False, y_column_to_scale=None,
+                                y_scale_range=(0, 1)):
+    """
+    # Purpose:
+        This is a final verion of the training_test_spliter. 
+        This version splits the data into training and test prior to Min-Max scaling.
+        The z score standardization is used for X standardization
+
+    # Return:
+        Pandas DataFrame (for now) for training and test data.
+        Y scalers for training and test data sets are also returned.
+        Order: training (np.array), test (np.array), training_scaler_X, training_scaler_Y, test_scaler_Y
+
+    # Arguments:
+        data: Pnadas DataFrame. Input data.
+        man_split: boolean. If to manually split the data into training/test sets.
+        man_split_colname: string. Set only when fixed_split=True, the variable name for the column to use for manual splitting.
+        man_split_testset_value: list. Set only when fixed_split=True, the splitting variable values for test set.
+        training_percent: float. percentage of the full data to be the training
+        random_state: int. seed for resampling RNG
+        x_standardization: boolean. if to center scale (z score standardization) the input X data 
+        x_scale_column_to_exclude: list. the name of the columns
+                                to remove from the X columns for scaling.
+                                makes sure to also inlcude the y column(s)
+        y_column_to_scale: list. column(s) to use as outcome for scaling
+        y_min_max_scaling: boolean. For regression study, if to do a Min_Max scaling to outcome
+        y_scale_range: two-tuple. the Min_Max range.
+
+    # Details:
+        The data normalization is applied AFTER the training/test splitting
+        The x_standardization is z score standardization ("center and scale"): (x - mean(x))/SD
+        The y_min_max_scaling is min-max nomalization
+        When x_standardization=True, the test data is standardized using training data mean and SD.
+        When y_min_max_scaling=True, the test data is scaled using training data max-min parameters.
+
+    """
+    # argument check
+    if not isinstance(data, pd.DataFrame):
+        raise TypeError("Input needs to be a pandas DataFrame.")
+    if not all(isinstance(scale_list, list) for scale_list in [y_column_to_scale, x_scale_column_to_exclude]):
+        raise ValueError(
+            'y_column_to_scale and x_scale_column_to_exclude need to be list.')
+    if man_split:
+        if (not man_split_colname) or (not man_split_testset_value):
+            raise ValueError(
+                'set man_split_colname and man_split_testset_value when man_split=True.')
+        else:
+            if not isinstance(man_split_colname, str):
+                raise ValueError('man_split_colname needs to be a string.')
+            if not isinstance(man_split_testset_value, list):
+                raise ValueError(
+                    'man_split_colvaue needs to be a list.')
+            if not all(test_value in list(data[man_split_colname]) for test_value in man_split_testset_value):
+                raise ValueError(
+                    'One or all man_split_test_value missing from the splitting variable.')
+
+    # split
+    if man_split:
+        # .copy() to make it explicit that it is a copy, to avoid Pandas SettingWithCopyWarning
+        training = data.loc[~data[man_split_colname].isin(
+            man_split_testset_value), :].copy()
+        test = data.loc[data[man_split_colname].isin(
+            man_split_testset_value), :].copy()
+    else:
+        training = data.sample(frac=training_percent,
+                               random_state=random_state)
+        test = data.iloc[~data.index.isin(training.index), :].copy()
+
+    # normalization if needed
+    # set the variables
+    training_scaler_X, training_scaler_Y, test_scaler_Y = None, None, None
+    selected_cols = y_column_to_scale + x_scale_column_to_exclude
+
+    if all(selected_col in data.columns for selected_col in selected_cols):
+        if x_standardization:
+            training_scaler_X = StandardScaler()
+            training[training.columns[~training.columns.isin(x_scale_column_to_exclude)]] = training_scaler_X.fit_transform(
+                training[training.columns[~training.columns.isin(x_scale_column_to_exclude)]])
+            test[test.columns[~test.columns.isin(x_scale_column_to_exclude)]] = training_scaler_X.transform(
+                test[test.columns[~test.columns.isin(x_scale_column_to_exclude)]])
+
+        if y_min_max_scaling:
+            if y_column_to_scale is not None:
+                training_scaler_Y = MinMaxScaler(feature_range=y_scale_range)
+                training[training.columns[training.columns.isin(y_column_to_scale)]] = training_scaler_Y.fit_transform(
+                    training[training.columns[training.columns.isin(y_column_to_scale)]])
+                test[test.columns[test.columns.isin(y_column_to_scale)]] = training_scaler_Y.transform(
+                    test[test.columns[test.columns.isin(y_column_to_scale)]])
+
+                # below: scale test y by its own scaler
+                # test_scaler_Y = MinMaxScaler(feature_range=y_scale_range)
+                # test[test.columns[test.columns.isin(y_column_to_scale)]] = test_scaler_Y.fit_transform(
+                #     test[test.columns[test.columns.isin(y_column_to_scale)]])
+    else:
+        print(
+            'Not all columns are found in the input DataFrame. Proceed without normalization\n')
+
+    return training, test, training_scaler_X, training_scaler_Y, test_scaler_Y
+
+
 def training_test_spliter(data,
                           training_percent=0.8, random_state=None,
                           man_split=False, man_split_colname=None,
@@ -100,6 +206,35 @@ def training_test_spliter(data,
         test = data.iloc[~data.index.isin(training.index), :]
 
     return training, test, scaler_X, scaler_Y
+
+
+def inverse_norm_y(training_y, test_y, scaler):
+    """
+    (to be deprecated)
+    # Purpose:
+        This function inverses the min-max normalized y values
+
+    # Return:
+        Training and test data inverse-transformed, in numpy array format
+
+    # Details:
+        The length of the input scaler is the combination of the input data, 
+        e.g. training_y and test_y
+
+    # Arguments:
+        training_y: input training y data. 
+        test_y: input test y data
+        scaler: the scaler that used for the min-max normalization, produced long with the data through
+                function training_test_spliter()
+
+    NOTE: if not already , the data will be converted to a numpy array
+    """
+    dat = np.concatenate([np.array(training_y), np.array(test_y)])
+    dat = scaler.inverse_transform(dat.reshape(dat.shape[0], 1))
+    dat = dat.reshape(dat.shape[0], )
+    training_y_out = dat[0:training_y.shape[0]]
+    test_y_out = dat[training_y.shape[0]:]
+    return training_y_out, test_y_out
 
 
 def training_test_spliter_new(data,
@@ -191,32 +326,3 @@ def training_test_spliter_new(data,
                 'Not all columns are found in the input DataFrame. Proceed without normalization\n')
 
     return training, test, training_scaler_Y, test_scaler_Y
-
-
-def inverse_norm_y(training_y, test_y, scaler):
-    """
-    (to be deprecated)
-    # Purpose:
-        This function inverses the min-max normalized y values
-
-    # Return:
-        Training and test data inverse-transformed, in numpy array format
-
-    # Details:
-        The length of the input scaler is the combination of the input data, 
-        e.g. training_y and test_y
-
-    # Arguments:
-        training_y: input training y data. 
-        test_y: input test y data
-        scaler: the scaler that used for the min-max normalization, produced long with the data through
-                function training_test_spliter()
-
-    NOTE: if not already , the data will be converted to a numpy array
-    """
-    dat = np.concatenate([np.array(training_y), np.array(test_y)])
-    dat = scaler.inverse_transform(dat.reshape(dat.shape[0], 1))
-    dat = dat.reshape(dat.shape[0], )
-    training_y_out = dat[0:training_y.shape[0]]
-    test_y_out = dat[training_y.shape[0]:]
-    return training_y_out, test_y_out
