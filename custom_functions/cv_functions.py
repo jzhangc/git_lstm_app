@@ -13,6 +13,7 @@ from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
 # StratifiedKFold makes sure the fold has an equal representation of the classes
 from sklearn.model_selection import KFold
 from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.callbacks import TensorBoard, EarlyStopping
 
 from custom_functions.custom_exceptions import (NpArrayShapeError,
                                                 PdDataFrameTypeError)
@@ -144,7 +145,8 @@ def lstm_cv_train(trainX, trainY, testX, testY,
                   output_activation='linear',
                   loss='mean_squared_error',
                   optimizer='adam',
-                  plot=False, verbose=False, **kwargs):
+                  plot=False, log_dir=None,
+                  verbose=False, **kwargs):
     """
     # Purpose:
         This is the wraper function for LSTM model training and evaluating.
@@ -165,6 +167,7 @@ def lstm_cv_train(trainX, trainY, testX, testY,
         loss: name of the loss function.
         optimizer: name of the optimization function.
         plot: boolean. if to plot the loss per epochs.
+        log_dir: string. The output directory for the tensorboard results.
         verbose: verbose setting.
         **kwargs: keyword arguments passed to the plot function epochs_loss_plot().
 
@@ -196,6 +199,14 @@ def lstm_cv_train(trainX, trainY, testX, testY,
         trainY = to_categorical(trainY)
 
     # modelling
+    # callback
+    earlystop_callback = EarlyStopping(monitor='val_loss', patience=5)
+    if log_dir:
+        tfbaord_callback = TensorBoard(log_dir=log_dir)
+        callbacks = [tfbaord_callback, earlystop_callback]
+    else:
+        callbacks = [earlystop_callback]
+
     # this might not work for classification studies: TO BE TESTED
     if study_type == 'n_to_one':
         if lstm_model == 'simple':
@@ -212,9 +223,12 @@ def lstm_cv_train(trainX, trainY, testX, testY,
             m = bidirectional_lstm_m(n_steps=n_timepoints, n_features=n_features, hidden_units=hidden_units,
                                      output_activation=output_activation,
                                      loss=loss, optimizer=optimizer)
-
+    # training the model
     m_history = m.fit(x=trainX, y=trainY, epochs=epochs,
-                      batch_size=batch_size, verbose=verbose)
+                      batch_size=batch_size,
+                      callbacks=callbacks,
+                      validation_data=(testX, testY),
+                      verbose=verbose)
 
     # loss plot
     if plot:

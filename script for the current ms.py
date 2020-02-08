@@ -214,4 +214,52 @@ y_yhat_plot(filepath=os.path.join(res_dir, 'new_freq1_cv_plot_scatter_test.pdf')
             bar_width=0.25)
 
 
-# ------ true test realm ------
+# ------ training/test subject split for all the frquencies ------
+# theta
+training, test, scaler_X, scaler_Y = training_test_spliter(
+    data=raw, man_split=True, man_split_colname='subject', man_split_testset_value=['PN14', 'PN27', 'PP13'],
+    min_max_scaling=True,
+    scale_column_as_y=['PCL'],
+    scale_column_to_exclude=['subject', 'PCL', 'group'])
+
+# alpha
+training, test, scaler_X, scaler_Y = training_test_spliter(
+    data=raw, man_split=True, man_split_colname='subject', man_split_testset_value=['PN10', 'PN27', 'PP10'],
+    min_max_scaling=True,
+    scale_column_as_y=['PCL'],
+    scale_column_to_exclude=['subject', 'PCL', 'group'])
+
+# beta
+training, test, scaler_X, scaler_Y = training_test_spliter(
+    data=raw, man_split=True, man_split_colname='subject', man_split_testset_value=['PN09', 'PN14', 'PP20'],
+    min_max_scaling=True,
+    scale_column_as_y=['PCL'],
+    scale_column_to_exclude=['subject', 'PCL', 'group'])
+
+# low gamma one
+training, test, scaler_X, scaler_Y = training_test_spliter(
+    data=raw, man_split=True, man_split_colname='subject', man_split_testset_value=['PN11', 'PP12', 'PP15'],
+    min_max_scaling=True,
+    scale_column_as_y=['PCL'],
+    scale_column_to_exclude=['subject', 'PCL', 'group'])
+
+# low gamma two
+training, test, scaler_X, scaler_Y = training_test_spliter(
+    data=raw, man_split=True, man_split_colname='subject', man_split_testset_value=['PN08', 'PP12', 'PP18'],
+    min_max_scaling=True,
+    scale_column_as_y=['PCL'],
+    scale_column_to_exclude=['subject', 'PCL', 'group'])
+
+# low gamma three
+training, test, scaler_X, scaler_Y = training_test_spliter(
+    data=raw, man_split=True, man_split_colname='subject', man_split_testset_value=['PN09', 'PN17', 'PP21'],
+    min_max_scaling=True,
+    scale_column_as_y=['PCL'],
+    scale_column_to_exclude=['subject', 'PCL', 'group'])
+
+# high gamma
+training, test, scaler_X, scaler_Y = training_test_spliter(
+    data=raw, man_split=True, man_split_colname='subject', man_split_testset_value=['PN10', 'PN19', 'PP03'],
+    min_max_scaling=True,
+    scale_column_as_y=['PCL'],
+    scale_column_to_exclude=['subject', 'PCL', 'group'])

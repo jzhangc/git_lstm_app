@@ -17,7 +17,7 @@ import argparse
 
 import numpy as np
 import pandas as pd
-from keras.callbacks import History  # for input argument type check
+from tensorflow.keras.callbacks import History  # for input argument type check
 from matplotlib import pyplot as plt
 from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
 # StratifiedKFold should be used for classification problems
@@ -30,10 +30,7 @@ from custom_functions.custom_exceptions import (NpArrayShapeError,
 from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
                                            lstm_cv_train, lstm_ensemble_eval,
                                            lstm_ensemble_predict)
-from custom_functions.data_processing import (inverse_norm_y,
-                                              training_test_spliter,
-                                              training_test_spliter_new,
-                                              training_test_spliter_final)
+from custom_functions.data_processing import training_test_spliter_final
 from custom_functions.plot_functions import y_yhat_plot
 from custom_functions.util_functions import logging_func
 

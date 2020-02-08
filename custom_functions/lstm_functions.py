@@ -15,6 +15,7 @@ from tensorflow.keras.layers import (LSTM, Bidirectional, Conv1D, ConvLSTM2D,
                                      Dense, Flatten, MaxPooling1D,
                                      RepeatVector, TimeDistributed)
 from tensorflow.keras.models import Sequential
+from tensorflow.keras.callbacks import TensorBoard
 
 
 # ------ functions ------
