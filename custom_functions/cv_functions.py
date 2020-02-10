@@ -139,7 +139,9 @@ def lstm_ensemble_predict(testX, models, model_index=None, outcome_type='regress
 
 
 def lstm_cv_train(trainX, trainY, testX, testY,
-                  lstm_model='simple', study_type='n_to_one', outcome_type='regression',
+                  lstm_model='simple', study_type='n_to_one',
+                  outcome_type='regression',
+                  prediction_inverse=False, y_scaler=None,
                   hidden_units=50,
                   epochs=200, batch_size=16,
                   output_activation='linear',
@@ -159,6 +161,7 @@ def lstm_cv_train(trainX, trainY, testX, testY,
         lstm_model: string. the type of LSTM model to use.
         study_type: string. the type of study, 'n_to_one' or 'n_to_n'. More to be added.
         outcome_type: string. the type of the outcome, 'regression' or 'classification'.
+        prediction_inverse: boolean. If to output inversed yhat (with corresponding RMSE) for regression. 
         hidden_units: int. number of hidden units in the first layer.
         epochs: int. number of epochs to use for LSTM modelling.
         batch_size: int. batch size for each modelling iteration.
@@ -172,12 +175,23 @@ def lstm_cv_train(trainX, trainY, testX, testY,
         **kwargs: keyword arguments passed to the plot function epochs_loss_plot().
 
     # Return:
-        A compiled LSTM model object, its modelling history, as well as the evaluation RMSE and R2 (on the hold-off fold) results
+        A compiled LSTM model object, its modelling history, 
+        as well as the evaluation RMSE and R2 (on the hold-off fold) results. 
+        The orders are: 
+            m: CV models
+            m_history: for plotting
+            yhat_res: predicted values
+            eval_res: RMSE for regression, and percentage accuracy for classification
+            rsq: this returns None for classification study
 
     # Details:
         This function trains and evaluates single LSTM model. Thus, the function is used as an
             intermediate functioin for evaluting ensemble models from k-fold CV.
         The output_action function "sigmoid" can be used for the min-max scaled data to (0, 1)
+
+        For a regression model, when prediction_inverse=True, the output RMSE and yhat_res are
+            in the original unit for y. 
+
         NOTE: the function might not work for classification: TO BE TESTED
     """
     # argument check
@@ -188,6 +202,13 @@ def lstm_cv_train(trainX, trainY, testX, testY,
     if not (trainX.shape[1] == testX.shape[1] and trainX.shape[2] == testX.shape[2]):
         raise NpArrayShapeError(
             'trainX and testX should have the same second and third dimensions.')
+    if prediction_inverse:
+        if outcome_type != "regression":
+            raise TypeError(
+                'prediction_inverse only applies to regression study.')
+
+        if y_scaler is None:
+            raise ValueError('assign y_sclaer when prediction_inverse=True.')
 
     # arguments
     # training_n_samples, test_n_samples = trainX.shape[0], testX.shape[0]
@@ -237,11 +258,20 @@ def lstm_cv_train(trainX, trainY, testX, testY,
     # evaluating
     # NOTE: below: regressional study only outputs loss (usually MSE), no accuracy
     # NOTE: for classification, the evaluate function returns both loss and accurarcy
+    yhat_res = m.predict(testX)
+
     if outcome_type == 'regression':
-        # only returns mse for regression
-        eval_res = m.evaluate(testX, testY, verbose=verbose)
-        eval_res = math.sqrt(eval_res)  # rmse
-        yhat_res = m.predict(testX)
+        if prediction_inverse:  # inverse and evaluate
+            if verbose:
+                print("prediction inverse applied to predction.")
+            yhat_res = y_scaler.inverse_transform(yhat_res)
+            testY = y_scaler.inverse_transform(testY)
+            eval_res = mean_squared_error(y_true=testY, y_pred=yhat_res)
+            eval_res = math.sqrt(eval_res)
+        else:
+            # only returns mse for regression
+            eval_res = m.evaluate(testX, testY, verbose=verbose)
+            eval_res = math.sqrt(eval_res)  # rmse
         rsq = r2_score(testY, yhat_res)
     else:
         # below returns loss and acc. we only capture acc
@@ -249,7 +279,7 @@ def lstm_cv_train(trainX, trainY, testX, testY,
         rsq = None
 
     # return
-    return m, m_history, eval_res, rsq
+    return m, m_history, yhat_res, eval_res, rsq
 
 
 def idx_func(input, n_features, Y_colnames, remove_colnames, n_folds=10, random_state=None):

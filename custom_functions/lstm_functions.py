@@ -101,7 +101,7 @@ def stacked_lstm_m(n_steps, n_features, n_output=1, hidden_units=50,
                input_shape=(n_steps, n_features)))
     m.add(LSTM(units=hidden_units, activation='relu'))
     m.add(Dense(units=n_output, activation=output_activation))
-    m.compile(loss='mse', optimizer=optimizer)  # regression study
+    m.compile(loss=loss, optimizer=optimizer)  # regression study
     return m
 
 

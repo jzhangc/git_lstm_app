@@ -33,7 +33,7 @@ def training_test_spliter_final(data,
     # Return:
         Pandas DataFrame (for now) for training and test data.
         Y scalers for training and test data sets are also returned.
-        Order: training (np.array), test (np.array), training_scaler_X, training_scaler_Y, test_scaler_Y
+        Order: training (np.array), test (np.array), training_scaler_X, training_scaler_Y
 
     # Arguments:
         data: Pnadas DataFrame. Input data.
@@ -57,13 +57,37 @@ def training_test_spliter_final(data,
         When x_standardization=True, the test data is standardized using training data mean and SD.
         When y_min_max_scaling=True, the test data is scaled using training data max-min parameters.
 
+    # Examples
+    1. with normalization
+        training, test, training_scaler_X, training_scaler_Y = training_test_spliter_final(
+            data=raw, random_state=1,
+            man_split=True, man_split_colname='subject', man_split_testset_value=selected_features[0],
+            x_standardization=True,
+            x_scale_column_to_exclude=['subject', 'PCL', 'group'],
+            y_min_max_scaling=True,
+            y_column_to_scale=['PCL'], y_scale_range=(0, 1))
+
+    2. without noralization
+        training, test, _, _ = training_test_spliter_final(
+            data=raw, random_state=1,
+            man_split=True, man_split_colname='subject', man_split_testset_value=selected_features[1],
+            x_standardization=False,
+            y_min_max_scaling=False)
+
     """
     # argument check
     if not isinstance(data, pd.DataFrame):
         raise TypeError("Input needs to be a pandas DataFrame.")
-    if not all(isinstance(scale_list, list) for scale_list in [y_column_to_scale, x_scale_column_to_exclude]):
-        raise ValueError(
-            'y_column_to_scale and x_scale_column_to_exclude need to be list.')
+
+    if x_standardization:
+        if not isinstance(x_scale_column_to_exclude, list):
+            raise ValueError(
+                'x_scale_column_to_exclude needs to be a list.')
+    if y_min_max_scaling:
+        if not isinstance(y_column_to_scale, list):
+            raise ValueError(
+                'y_column_to_scale needs to be a list.')
+
     if man_split:
         if (not man_split_colname) or (not man_split_testset_value):
             raise ValueError(
@@ -93,33 +117,29 @@ def training_test_spliter_final(data,
     # normalization if needed
     # set the variables
     training_scaler_X, training_scaler_Y, test_scaler_Y = None, None, None
-    selected_cols = y_column_to_scale + x_scale_column_to_exclude
-
-    if all(selected_col in data.columns for selected_col in selected_cols):
-        if x_standardization:
+    if x_standardization:
+        if all(selected_col in data.columns for selected_col in x_scale_column_to_exclude):
             training_scaler_X = StandardScaler()
             training[training.columns[~training.columns.isin(x_scale_column_to_exclude)]] = training_scaler_X.fit_transform(
                 training[training.columns[~training.columns.isin(x_scale_column_to_exclude)]])
             test[test.columns[~test.columns.isin(x_scale_column_to_exclude)]] = training_scaler_X.transform(
                 test[test.columns[~test.columns.isin(x_scale_column_to_exclude)]])
+        else:
+            print(
+                'Not all columns are found in the input X. Proceed without X standardization. \n')
 
-        if y_min_max_scaling:
-            if y_column_to_scale is not None:
-                training_scaler_Y = MinMaxScaler(feature_range=y_scale_range)
-                training[training.columns[training.columns.isin(y_column_to_scale)]] = training_scaler_Y.fit_transform(
-                    training[training.columns[training.columns.isin(y_column_to_scale)]])
-                test[test.columns[test.columns.isin(y_column_to_scale)]] = training_scaler_Y.transform(
-                    test[test.columns[test.columns.isin(y_column_to_scale)]])
+    if y_min_max_scaling:
+        if all(selected_col in data.columns for selected_col in y_column_to_scale):
+            training_scaler_Y = MinMaxScaler(feature_range=y_scale_range)
+            training[training.columns[training.columns.isin(y_column_to_scale)]] = training_scaler_Y.fit_transform(
+                training[training.columns[training.columns.isin(y_column_to_scale)]])
+            test[test.columns[test.columns.isin(y_column_to_scale)]] = training_scaler_Y.transform(
+                test[test.columns[test.columns.isin(y_column_to_scale)]])
+        else:
+            print(
+                'Y column to scale not found. Proceed without Y scaling. \n')
 
-                # below: scale test y by its own scaler
-                # test_scaler_Y = MinMaxScaler(feature_range=y_scale_range)
-                # test[test.columns[test.columns.isin(y_column_to_scale)]] = test_scaler_Y.fit_transform(
-                #     test[test.columns[test.columns.isin(y_column_to_scale)]])
-    else:
-        print(
-            'Not all columns are found in the input DataFrame. Proceed without normalization\n')
-
-    return training, test, training_scaler_X, training_scaler_Y, test_scaler_Y
+    return training, test, training_scaler_X, training_scaler_Y
 
 
 def training_test_spliter(data,

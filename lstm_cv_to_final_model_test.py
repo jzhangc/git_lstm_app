@@ -1,5 +1,5 @@
 """
-NEW! phase1 based single timepoint to phase1-phase2 lstm analysis
+to test small things
 """
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
@@ -71,7 +71,7 @@ training, test, _, _ = training_test_spliter_final(
 # _, testY = inverse_norm_y(training_y=trainingY, test_y=testY, scaler=scaler_Y)
 # ---- test k-fold data sampling
 cv_train_idx, cv_test_idx = idx_func(input=training, n_features=n_features, Y_colnames=['PCL'],
-                                     remove_colnames=['subject', 'group'], n_folds=n_folds, random_state=55)
+                                     remove_colnames=['subject', 'group'], n_folds=n_folds, random_state=800)
 
 len(cv_train_idx[0])  # 26
 
@@ -125,7 +125,6 @@ for i in range(n_folds):
                                                                                xlabel=None,
                                                                                ylabel=None,
                                                                                verbose=False)
-
     cv_m.save(os.path.join(res_dir, 'cv_models',
                            freq+'_cv_'+'fold_'+str(i+1)+'.h5'))
     cv_m_ensemble.append(cv_m)
@@ -146,7 +145,7 @@ cv_rmse_mean
 cv_rmse_sd
 cv_rmse_sem
 
-# ------ prediction ------
+# ------ final modelling and evaluation ------
 # data transformation
 training_scaler_X = StandardScaler()
 x_scale_column_to_exclude = ['subject', 'PCL', 'group']
@@ -172,78 +171,26 @@ trainingX.shape  # n_samples x n_timepoints x n_features
 trainingY.shape  # 29x1
 training_scaler_Y.inverse_transform(testY)
 
+# modelling
+final_m, final_m_history, final_pred, final_m_test_rmse, final_m_test_rsq = lstm_cv_train(trainX=trainingX, trainY=trainingY,
+                                                                                          testX=testX, testY=testY,
+                                                                                          lstm_model='stacked',
+                                                                                          study_type='n_to_one',
+                                                                                          prediction_inverse=True, y_scaler=training_scaler_Y,
+                                                                                          hidden_units=50, epochs=150, batch_size=29,
+                                                                                          output_activation='sigmoid',
+                                                                                          log_dir=os.path.join(
+                                                                                              res_dir, 'fit', 'final_model'),
+                                                                                          plot=True,
+                                                                                          filepath=os.path.join(
+                                                                                              res_dir, 'final_model.pdf'),
+                                                                                          plot_title=None,
+                                                                                          xlabel=None,
+                                                                                          ylabel=None,
+                                                                                          verbose=True)
 
-# also features: inverse the predictions from normalized values to PCLs
-# prediction for the test subjests
-yhats_test = lstm_ensemble_predict(testX=testX,
-                                   models=cv_m_ensemble, model_index=top5_index)
-# yhats_test = lstm_ensemble_predict(testX=testX, models=cv_m_ensemble)
-# below: anix=0 means "along the row, by column"
-# NOTE: below: real world utility only uses training scalers
-yhats_test_conv = [training_scaler_Y.inverse_transform(
-    ary) for ary in yhats_test]
-yhats_test_conv = np.array(yhats_test_conv)
-yhats_test_mean_conv = np.mean(yhats_test_conv, axis=0)
-yhats_test_std = np.std(yhats_test_conv, axis=0)
-yhats_test_sem = yhats_test_std/math.sqrt(5)
 
-# prediction for 80% test subjests
-yhats_training = lstm_ensemble_predict(
-    models=cv_m_ensemble, testX=trainingX, model_index=top5_index)
-# yhats_training = lstm_ensemble_predict(
-#     models=cv_m_ensemble, testX=trainingX)
-yhats_training_conv = [training_scaler_Y.inverse_transform(
-    ary) for ary in yhats_training]
-yhats_training_conv = np.array(yhats_training_conv)
-yhats_training_mean_conv = np.mean(yhats_training_conv, axis=0)
-yhats_training_std = np.std(yhats_training_conv, axis=0)
-yhats_training_sem = yhats_training_std/math.sqrt(5)
-
-# ------ eval ------
-# below: calcuate RMSE and R2 (final, i.e. on the test data) using inversed y and yhat
-# this RMSE is the score to report
-testY_conv = training_scaler_Y.inverse_transform(testY)
-rmse_yhats, rsq_yhats = list(), list()
-for yhat_test in yhats_test_conv:  # NOTE: below: real world utility only uses training scalers
-    rmse_yhat = math.sqrt(mean_squared_error(
-        y_true=testY_conv, y_pred=yhat_test))
-    rsq_yhat = r2_score(y_true=testY_conv, y_pred=yhat_test)
-    rmse_yhats.append(rmse_yhat)
-    rsq_yhats.append(rsq_yhat)
-
-rmse_yhats = np.array(rmse_yhats)
-rmse_yhats_mean = np.mean(rmse_yhats)
-rmse_yhats_sd = np.std(rmse_yhats)
-rmse_yhats_sem = np.std(rmse_yhats)/math.sqrt(5)
-rmse_yhats
-rmse_yhats_mean
-rmse_yhats_sd
-rmse_yhats_sem
-
-# ------ plot testing ------
-y = np.concatenate([training_scaler_Y.inverse_transform(
-    trainingY), training_scaler_Y.inverse_transform(testY)])
-y_true = y.reshape(y.shape[0], )
-yhats_training_mean_conv = yhats_training_mean_conv.reshape(
-    yhats_training_mean_conv.shape[0], )
-yhats_training_std = yhats_training_std.reshape(
-    yhats_training_std.shape[0], )
-yhats_training_sem = yhats_training_sem.reshape(
-    yhats_training_sem.shape[0], )
-yhats_test_mean_conv = yhats_test_mean_conv.reshape(
-    yhats_test_mean_conv.shape[0], )
-yhats_test_std = yhats_test_std.reshape(yhats_test_std.shape[0], )
-yhats_test_sem = yhats_test_sem.reshape(yhats_test_sem.shape[0], )
-
-y_yhat_plot(filepath=os.path.join(res_dir, 'new_lstm_phase1_base_scatter_'+freq+'.pdf'),
-            y_true=y_true,
-            training_yhat=yhats_training_mean_conv,
-            training_yhat_err=yhats_training_std,
-            test_yhat=yhats_test_mean_conv,
-            test_yhat_err=yhats_test_std,
-            plot_title='Cross-validation prediction',
-            ylabel='PCL', xlabel='Subjects', plot_type='scatter',
-            bar_width=0.25)
-
+final_pred
+final_m_test_rmse
 
 # ------ true test realm ------
