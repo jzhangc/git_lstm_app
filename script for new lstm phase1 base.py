@@ -37,17 +37,20 @@ log_dir = os.path.join(main_dir, 'log')
 logger = logging_func(filepath=os.path.join(log_dir, 'test.log'))
 
 # ---- import data
-freq = 'freq6'
+freq = 'freq2'
+# raw = pd.read_csv(os.path.join(
+#     dat_dir, 'lstm_aec_phases_freq2.csv'), engine='python')
 raw = pd.read_csv(os.path.join(
     dat_dir, 'new_lstm_aec_phase1_base_'+freq+'.csv'), engine='python')
+
 
 raw.iloc[0:5, 0:5]
 raw.shape
 
 # ---- key variable
-n_features = 10
+n_features = 12
 n_folds = 10
-selected_features = [["PP12", "PN05", "PN11"],
+selected_features = [["PN23", "PP12", "PN10"],
                      ["PP19", "PP18", "PN23"],
                      ["PP15", "PN16", "PN18"],
                      ["PP15", "PP24", "PN11"],
@@ -63,7 +66,7 @@ res_dir = os.path.join(main_dir, 'results/new_lstm_phase1_base', freq)
 # new spliting
 training, test, _, _ = training_test_spliter_final(
     data=raw, random_state=1,
-    man_split=True, man_split_colname='subject', man_split_testset_value=selected_features[5],
+    man_split=True, man_split_colname='subject', man_split_testset_value=['PN16', 'PP03', 'PN17'],
     x_standardization=False,
     y_min_max_scaling=False)
 
@@ -71,7 +74,7 @@ training, test, _, _ = training_test_spliter_final(
 # _, testY = inverse_norm_y(training_y=trainingY, test_y=testY, scaler=scaler_Y)
 # ---- test k-fold data sampling
 cv_train_idx, cv_test_idx = idx_func(input=training, n_features=n_features, Y_colnames=['PCL'],
-                                     remove_colnames=['subject', 'group'], n_folds=n_folds, random_state=55)
+                                     remove_colnames=['subject', 'group'], n_folds=n_folds, random_state=555)
 
 len(cv_train_idx[0])  # 26
 
