@@ -6,11 +6,11 @@ Python3 commandline application for LSTM analysis
 
 # ------ import modules ------
 # import math
-# import os
+import os
 import argparse
-
-# import numpy as np
-# import pandas as pd
+import numpy as np
+import pandas as pd
+from datetime import datetime
 # from tensorflow.keras.callbacks import History  # for input argument type check
 # from matplotlib import pyplot as plt
 # from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
@@ -53,21 +53,22 @@ def add_bool_arg(parser, name, help, input_type, default=False):
 
 # ------ system variables -------
 __version__ = '0.1.0'
-author = 'Jing Zhang, PhD'
-description = """
+AUTHOR = 'Jing Zhang, PhD'
+DESCRIPITON = """
 ---------------------------- Description ---------------------------
 LSTM regression modelling using multiple-timpoint MEG connectome.
 Currently, the program only accepts same feature size per timepoint.
--------------------------------------------------------------------- 
+--------------------------------------------------------------------
 """
 
 # ------ augment definition ------
 # -- arguments --
-parser = argparse.ArgumentParser(description=description,
+parser = argparse.ArgumentParser(description=DESCRIPITON,
                                  epilog='Written by: {}. Current version: {}'.format(
-                                     author, __version__),
+                                     AUTHOR, __version__),
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
 
+# below: postional and optional optionals
 add_arg = parser.add_argument
 add_arg('file', nargs='*', default=[])
 add_arg('-fp', '--file_pattern', type=str, default=False,
@@ -92,14 +93,19 @@ add_arg('-sv', '--sample_variable', type=str, default=[],
         help='str. Vairable name for samples')
 add_bool_arg(parser=parser, name='man_split', input_type='flag',
              help='Manually split data into training and test sets', default=False)
-add_arg('--tp', '--training_percentage', type=float, default=0.8,
-        help='num, range: 0~1. Split percentage for training set when --no-man_split is set')
 add_arg('-hs', '--holdout_samples', nargs='+', type=str, default=[],
         help='str. Sample IDs selected as holdout test group when --man_split was set')
+add_arg('--tp', '--training_percentage', type=float, default=0.8,
+        help='num, range: 0~1. Split percentage for training set when --no-man_split is set')
 add_arg('-o', '--output_dir', type=str,
         default='.', help='str. Output directory')
 add_arg('-rs', '--random_state', type=int, default=1, help='int. Random state')
+add_bool_arg(parser=parser, name='plot', input_type='flag',
+             help='Explort a scatter plot', default=False)
+add_arg('-pt', '--plot-type', type=str,
+        choices=['scatter', 'bar'], default='scatter', help='str. Plot type')
 
+# blow: mandatory opitonals
 add_req = parser.add_argument_group(title='required arguments').add_argument
 add_req('-sa', '--sample_annotation', type=str, default=[],
         required=True, help='str. Sample annotation .csv file')
@@ -112,12 +118,61 @@ args = parser.parse_args()
 if args.file_pattern and args.man_split:
     parser.error(
         '-ms or --man_split flag invalid if -fp or --file_pattern are set.')
+if len(args.file) > 1 and args.man_split:
+    parser.error(
+        '-ms or --man_split invalid if multiple input files are provided')
 if args.man_split and len(args.holdout_samples) == 0:
     parser.error(
         'set -hs or --holdout_samples when -ms or --man_split flag is on.')
 if not args.man_split and (args.training_percentage < 0 or args.training_percentage > 1):
     parser.error(
         'set -tp or --training_percentage within 0~1 when -ms or --no-man_split is on.')
+
+
+# ------ local variables ------
+res_dir = args.output_dir
+input_filenames = list()
+for i in args.file:
+    basename = os.path.basename(i)
+    filename = os.path.splitext(basename)[0]
+    input_filenames.append(filename)
+
+# ------ setup output folders ------
+try:
+    os.makedirs(res_dir)
+except FileExistsError:
+    res_dir = res_dir+'_'+datetime.now().strftime("%Y%m%d-%H%M%S")
+    os.makedirs(res_dir)
+    print('Output directory already exists. Use {} instread.'.format(res_dir))
+except OSError:
+    print('Creation of directory failed: {}'.format(res_dir))
+else:
+    print("Output directory created: {}".format(res_dir))
+
+for i in input_filenames:
+    sub_dir = os.path.join(res_dir, i)
+    try:
+        os.makedirs(sub_dir)
+        os.makedirs(os.path.join(sub_dir, 'fit'))
+        os.makedirs(os.path.join(sub_dir, 'cv_models'))
+        os.makedirs(os.path.join(sub_dir, 'intermediate_data'))
+    except FileExistsError:
+        print('\tCreation of sub-directory failed (already exists): {}'.format(sub_dir))
+        pass
+    except OSError:
+        print('\tCreation of sub-directory failed: {}'.format(sub_dir))
+        pass
+    else:
+        print('\tSub-directory created in {} for file: {}'.format(res_dir, i))
+
+# ------ training pipeline ------
+# -- read data --
+
+# -- file processing --
+
+# -- training and export --
+
+# -- model evaluation and plotting --
 
 
 # ------ __main__ statement ------

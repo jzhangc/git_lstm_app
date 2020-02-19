@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
 Current objectives:
-1. Test argparse
+[x] 1. Test argparse
+[ ] 2. Test output directory creation
+[ ] 3. Test file reading
+[ ] 4. Test file processing
+[ ] 5. Test training
 """
 
 # ------ import modules ------
 # import math
-# import os
+import os
 import argparse
-
+from datetime import datetime
 # import numpy as np
 # import pandas as pd
 # from tensorflow.keras.callbacks import History  # for input argument type check
@@ -51,38 +55,79 @@ def add_bool_arg(parser, name, help, input_type, default=False):
     parser.set_defaults(**{name: default})
 
 
-# ------ system variables -------
+# ------ GLOBAL variables -------
 __version__ = '0.1.0'
-author = 'Jing Zhang, PhD'
-description = """
+AUTHOR = 'Jing Zhang, PhD'
+DESCRIPITON = """
 ---------------------------- Description ---------------------------
 LSTM regression modelling using multiple-timpoint MEG connectome.
 Currently, the program only accepts same feature size per timepoint.
--------------------------------------------------------------------- 
+--------------------------------------------------------------------
 """
 
 # ------ augment definition ------
-parser = argparse.ArgumentParser(description=description,
+parser = argparse.ArgumentParser(description=DESCRIPITON,
                                  epilog='Written by: {}. Current version: {}'.format(
-                                     author, __version__),
+                                     AUTHOR, __version__),
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
 
 add_arg = parser.add_argument
-add_arg('--file_pattern', '-fp', type=str, default=False,
-        help='str. Input file pattern for batch processing')
-add_bool_arg(parser=parser, name='man_split', input_type='bool',
-             help='Manually split data into training and test sets', default=False)
+add_arg('file', nargs='*', default=[])
+add_arg('-o', '--output_dir', type=str,
+        default='.', help='str. Output directory')
 
 add_req = parser.add_argument_group(title='required arguments').add_argument
 
 args = parser.parse_args()
 
-print(args)
 
+# ------ local variables ------
+res_dir = args.output_dir
+input_filenames = list()
+for i in args.file:
+    basename = os.path.basename(i)
+    filename = os.path.splitext(basename)[0]
+    input_filenames.append(filename)
 
-if args.file_pattern and args.man_split:
-    parser.error(
-        '--man_split or -ms are invalid if --file_pattern or -fp are set.')
+print(input_filenames)
+
+# ------ setup output folders ------
+try:
+    os.makedirs(res_dir)
+except FileExistsError:
+    res_dir = res_dir+'_'+datetime.now().strftime("%Y%m%d-%H%M%S")
+    os.makedirs(res_dir)
+    print('Output directory already exists. Use {} instread.'.format(res_dir))
+except OSError:
+    print('Creation of directory failed: {}'.format(res_dir))
+else:
+    print("Output directory created: {}".format(res_dir))
+
+for i in input_filenames:
+    sub_dir = os.path.join(res_dir, i)
+    try:
+        os.makedirs(sub_dir)
+        os.makedirs(os.path.join(sub_dir, 'fit'))
+        os.makedirs(os.path.join(sub_dir, 'cv_models'))
+        os.makedirs(os.path.join(sub_dir, 'intermediate_data'))
+    except FileExistsError:
+        print('\tCreation of sub-directory failed (already exists): {}'.format(sub_dir))
+        pass
+    except OSError:
+        print('\tCreation of sub-directory failed: {}'.format(sub_dir))
+        pass
+    else:
+        print('\tSub-directory created in {} for file: {}'.format(res_dir, i))
+
+# ------ training pipeline ------
+# -- read data --
+
+# -- file processing --
+
+# -- training and export --
+
+# -- model evaluation and plotting --
+
 
 # ------ __main__ statement ------
 # if __name__ == '__main__':
