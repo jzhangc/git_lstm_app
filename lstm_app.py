@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Current objectives:
-1. Test argparse
+Current objective:
+Python3 commandline application for LSTM analysis
 """
 
 # ------ import modules ------
@@ -68,7 +68,30 @@ parser = argparse.ArgumentParser(description=description,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
 
 add_arg = parser.add_argument
+add_arg('file', nargs='*', default=[])
+add_arg('--file_pattern', '-fp', type=str, default=False,
+        help='str. Input file pattern for batch processing')
+add_arg('--model_type', '-m', type=str, default='simple',
+        help='str. LSTM model type. Options: \'simple\', \'stacked\', and \'bidirectional\''
+        )
+add_arg('--n_timepoints', "-nt", type=int, default=2,
+        help='int. Number of timepoints')
+add_arg('--output_dir', '-o', type=str,
+        default='.', help='str. Output directory')
+add_arg('--sample_variable', '-sv', type=str, default=[],
+        help='str. Vairable name for samples')
+add_bool_arg(parser=parser, name='man_split', input_type='bool',
+             help='Manually split data into training and test sets', default=False)
+add_arg('--split_percentage', '--sp', type=float, default=0.8,
+        help='num. Training percentage of ')
+add_arg('--selected_test_samples', '-st', nargs='+', type=str, default=[],
+        help='str. Sample IDs selected as test group when --man_split was set')
+
 add_req = parser.add_argument_group(title='required arguments').add_argument
+add_req('--sample_annotation', '-sa', type=str, default=[],
+        required=True, help='str. Sample annotation .csv file')
+add_req('--n_features', '-nf', type=int, default=[],
+        help='int. Number of features each timepoint', required=True)
 
 args = parser.parse_args()
 
