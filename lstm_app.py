@@ -166,14 +166,14 @@ class InputData(object):
         self.__n_samples__ = self.input.shape[0]  # pd.shape[0]: nrow
         self.__n_annot_col__ = len(args.annotation_variables)
 
-        self.n_timepoints = args.n_timepoints
+        self.__n_timepoints__ = args.n_timepoints
         self.n_features = int((
-            self.input.shape[1] - self.__n_annot_col__)/args.n_timepoints)  # pd.shape[1]: ncol
+            self.input.shape[1] - self.__n_annot_col__)/self.__n_timepoints__)  # pd.shape[1]: ncol
 
         if args.cross_validation_type == 'kfold':
-            self.cv_fold = args.cv_fold
+            self.__cv_fold__ = args.cv_fold
         else:
-            self.cv_fold = self.__n_samples__
+            self.__cv_fold__ = self.__n_samples__
 
 
 # ------ setup output folders ------
