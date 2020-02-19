@@ -7,6 +7,7 @@ Python3 commandline application for LSTM analysis
 # ------ import modules ------
 # import math
 import os
+import sys
 import argparse
 import numpy as np
 import pandas as pd
@@ -51,6 +52,22 @@ def add_bool_arg(parser, name, help, input_type, default=False):
     parser.set_defaults(**{name: default})
 
 
+# ------ classes ------
+class AppArgParser(argparse.ArgumentParser):
+    """
+    This is a sub class to argparse.ArgumentParser.
+
+    Purpose
+            The help page will display when (1) not argumment was provided, or (2) there an error
+    """
+
+    def error(self, message):
+        sys.stderr.write('error: %s\n' % message)
+        print('\n')
+        self.print_help()
+        sys.exit(2)
+
+
 # ------ system variables -------
 __version__ = '0.1.0'
 AUTHOR = 'Jing Zhang, PhD'
@@ -63,10 +80,10 @@ Currently, the program only accepts same feature size per timepoint.
 
 # ------ augment definition ------
 # -- arguments --
-parser = argparse.ArgumentParser(description=DESCRIPITON,
-                                 epilog='Written by: {}. Current version: {}'.format(
-                                     AUTHOR, __version__),
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+parser = AppArgParser(description=DESCRIPITON,
+                      epilog='Written by: {}. Current version: {}'.format(
+                          AUTHOR, __version__),
+                      formatter_class=argparse.RawDescriptionHelpFormatter)
 
 # below: postional and optional optionals
 add_arg = parser.add_argument
