@@ -1,0 +1,8 @@
+$ test commands
+./lstm_app.py \
+./data/new_lstm_aec_phase1_base_freq2.csv ./data/lstm_aec_phases_freq2_new.csv \
+-o ./results/apptest
+
+./testrealm.py \
+./data/new_lstm_aec_phase1_base_freq2.csv \
+-nt=2 -ct='kfold' -av subject, PCL, group

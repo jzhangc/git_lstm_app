@@ -14,7 +14,7 @@ import os
 import argparse
 from datetime import datetime
 # import numpy as np
-# import pandas as pd
+import pandas as pd
 # from tensorflow.keras.callbacks import History  # for input argument type check
 # from matplotlib import pyplot as plt
 # from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
@@ -73,54 +73,58 @@ parser = argparse.ArgumentParser(description=DESCRIPITON,
 
 add_arg = parser.add_argument
 add_arg('file', nargs='*', default=[])
-add_arg('-o', '--output_dir', type=str,
-        default='.', help='str. Output directory')
+add_arg("-nt", '--n_timepoints', type=int, default=2,
+        help='int. Number of timepoints')
+add_arg('-ct', '--cross_validation-type', type=str,
+        choices=['kfold', 'LOO'], default='kfold', help='str. Cross validation type')
+add_arg('-cf', '--cv_fold', type=int, default=10,
+        help='int. Number fo cross validation fold when --cross_validation-type=\'kfold\'')
 
 add_req = parser.add_argument_group(title='required arguments').add_argument
+add_req('-av', '--annotation_variables', type=str, nargs="+", default=[],
+        required=True, help='names of the annotation columns in the input data')
 
 args = parser.parse_args()
 
+print(args)
+
 
 # ------ local variables ------
-res_dir = args.output_dir
-input_filenames = list()
-for i in args.file:
-    basename = os.path.basename(i)
-    filename = os.path.splitext(basename)[0]
-    input_filenames.append(filename)
+# ------ loacl classes ------
+class InputData(object):
+    def __init__(self, file):
+        self.input = pd.read_csv(file)
+        self.__n_samples__ = self.input.shape[0]  # pd.shape[0]: nrow
+        self.__n_annot_col__ = len(args.annotation_variables)
 
-print(input_filenames)
+        self.n_timepoints = args.n_timepoints
+        self.n_features = int((
+            self.input.shape[1] - self.__n_annot_col__)/args.n_timepoints)  # pd.shape[1]: ncol
+
+        if args.cross_validation_type == 'kfold':
+            self.cv_fold = args.cv_fold
+        else:
+            self.cv_fold = self.__n_samples__
+
+
+MyData = InputData(file=args.file[0])
+
+print("MyData shape: {})".format(MyData.input.shape))
+print('\n')
+print("MyData.__n_samples__: {}; MyData.__n_annot_col__: {})".format(
+    MyData.__n_samples__, MyData.__n_annot_col__))
+print('\n')
+print("MyData.__n_samples__: {}; MyData.__n_annot_col__: {})".format(
+    MyData.__n_samples__, MyData.__n_annot_col__))
+print('\n')
+print("MyData.cv_fold: {}; MyData.n_features: {})".format(
+    MyData.cv_fold, MyData.n_features))
 
 # ------ setup output folders ------
-try:
-    os.makedirs(res_dir)
-except FileExistsError:
-    res_dir = res_dir+'_'+datetime.now().strftime("%Y%m%d-%H%M%S")
-    os.makedirs(res_dir)
-    print('Output directory already exists. Use {} instread.'.format(res_dir))
-except OSError:
-    print('Creation of directory failed: {}'.format(res_dir))
-else:
-    print("Output directory created: {}".format(res_dir))
-
-for i in input_filenames:
-    sub_dir = os.path.join(res_dir, i)
-    try:
-        os.makedirs(sub_dir)
-        os.makedirs(os.path.join(sub_dir, 'fit'))
-        os.makedirs(os.path.join(sub_dir, 'cv_models'))
-        os.makedirs(os.path.join(sub_dir, 'intermediate_data'))
-    except FileExistsError:
-        print('\tCreation of sub-directory failed (already exists): {}'.format(sub_dir))
-        pass
-    except OSError:
-        print('\tCreation of sub-directory failed: {}'.format(sub_dir))
-        pass
-    else:
-        print('\tSub-directory created in {} for file: {}'.format(res_dir, i))
 
 # ------ training pipeline ------
 # -- read data --
+
 
 # -- file processing --
 

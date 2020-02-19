@@ -9,7 +9,7 @@ Python3 commandline application for LSTM analysis
 import os
 import sys
 import argparse
-import numpy as np
+# import numpy as np
 import pandas as pd
 from datetime import datetime
 # from tensorflow.keras.callbacks import History  # for input argument type check
@@ -52,7 +52,7 @@ def add_bool_arg(parser, name, help, input_type, default=False):
     parser.set_defaults(**{name: default})
 
 
-# ------ classes ------
+# ------ system classes ------
 class AppArgParser(argparse.ArgumentParser):
     """
     This is a sub class to argparse.ArgumentParser.
@@ -90,6 +90,8 @@ add_arg = parser.add_argument
 add_arg('file', nargs='*', default=[])
 add_arg('-fp', '--file_pattern', type=str, default=False,
         help='str. Input file pattern for batch processing')
+add_arg('-fa', '--file_annotation', type=str, default=False,
+        help='str. Annotation for input data files')
 add_arg("-nt", '--n_timepoints', type=int, default=2,
         help='int. Number of timepoints')
 add_arg('-ct', '--cross_validation-type', type=str,
@@ -106,8 +108,6 @@ add_arg('-e', '--epoches', type=int, default=500,
         help='int. Number of epoches for LSTM modelling')
 add_arg('-b', '--batch_size', type=int, default=32,
         help='int. The batch size for LSTM modeling')
-add_arg('-sv', '--sample_variable', type=str, default=[],
-        help='str. Vairable name for samples')
 add_bool_arg(parser=parser, name='man_split', input_type='flag',
              help='Manually split data into training and test sets', default=False)
 add_arg('-hs', '--holdout_samples', nargs='+', type=str, default=[],
@@ -124,10 +124,14 @@ add_arg('-pt', '--plot-type', type=str,
 
 # blow: mandatory opitonals
 add_req = parser.add_argument_group(title='required arguments').add_argument
-add_req('-sa', '--sample_annotation', type=str, default=[],
-        required=True, help='str. Sample annotation .csv file')
-add_req('-nf', '--n_features', type=int, default=[],
-        help='int. Number of features each timepoint', required=True)
+# add_req('-sa', '--sample_annotation', type=str, default=[],
+#         required=True, help='str. Sample annotation .csv file')
+add_req('-sv', '--sample_variable', type=str, default=[],
+        required=True, help='str. Vairable name for samples')
+add_req('-av', '--annotation_variables', type=str, nargs="+", default=[],
+        required=True, help='names of the annotation columns in the input data')
+# add_req('-nf', '--n_features', type=int, default=[],
+#         help='int. Number of features each timepoint', required=True)
 
 args = parser.parse_args()
 
@@ -153,6 +157,24 @@ for i in args.file:
     basename = os.path.basename(i)
     filename = os.path.splitext(basename)[0]
     input_filenames.append(filename)
+
+
+# ------local classes ------
+class InputData(object):
+    def __init__(self, file):
+        self.input = pd.read_csv(file)
+        self.__n_samples__ = self.input.shape[0]  # pd.shape[0]: nrow
+        self.__n_annot_col__ = len(args.annotation_variables)
+
+        self.n_timepoints = args.n_timepoints
+        self.n_features = int((
+            self.input.shape[1] - self.__n_annot_col__)/args.n_timepoints)  # pd.shape[1]: ncol
+
+        if args.cross_validation_type == 'kfold':
+            self.cv_fold = args.cv_fold
+        else:
+            self.cv_fold = self.__n_samples__
+
 
 # ------ setup output folders ------
 try:

@@ -37,7 +37,7 @@ log_dir = os.path.join(main_dir, 'log')
 logger = logging_func(filepath=os.path.join(log_dir, 'test.log'))
 
 # ---- import data
-freq = 'freq2'
+freq = 'freq1'
 # raw = pd.read_csv(os.path.join(
 #     dat_dir, 'lstm_aec_phases_freq2.csv'), engine='python')
 raw = pd.read_csv(os.path.join(
