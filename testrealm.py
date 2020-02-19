@@ -47,7 +47,7 @@ def add_bool_arg(parser, name, help, input_type, default=False):
     group.add_argument('--' + name, dest=name,
                        action='store_true', help=input_type + '. ' + help)
     group.add_argument('--no-' + name, dest=name,
-                       action='store_false', help=input_type + '. ''not to ' + help)
+                       action='store_false', help=input_type + '. ''(Not to) ' + help)
     parser.set_defaults(**{name: default})
 
 
@@ -68,11 +68,21 @@ parser = argparse.ArgumentParser(description=description,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
 
 add_arg = parser.add_argument
+add_arg('--file_pattern', '-fp', type=str, default=False,
+        help='str. Input file pattern for batch processing')
+add_bool_arg(parser=parser, name='man_split', input_type='bool',
+             help='Manually split data into training and test sets', default=False)
+
 add_req = parser.add_argument_group(title='required arguments').add_argument
 
 args = parser.parse_args()
 
 print(args)
+
+
+if args.file_pattern and args.man_split:
+    parser.error(
+        '--man_split or -ms are invalid if --file_pattern or -fp are set.')
 
 # ------ __main__ statement ------
 # if __name__ == '__main__':
