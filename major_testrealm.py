@@ -33,6 +33,18 @@ import argparse
 
 # ------ custom functions ------
 def add_bool_arg(parser, name, help, input_type, default=False):
+    """
+    Purpose\n
+            autmatically add a pair of mutually exclusive boolean arguments to the
+            argparser
+
+    Arguments\n
+            parser: a parser object
+            name: str. the argument name
+            help: str. the help message
+            input_type: str. the value type for the argument
+            default: the default value of the argument if not set
+    """
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('--' + name, dest=name,
                        action='store_true', help=input_type + '. ' + help)
@@ -59,24 +71,29 @@ parser = argparse.ArgumentParser(description=description,
 
 add_arg = parser.add_argument
 add_arg('file', nargs='*', default=[])
-add_arg('--model_type', '-m', default='simple',
-        help='str. LSTM model type. Options: \'simple\', \'stacked\', and \'bidirectional\'.'
+add_arg('--file_pattern', '-fp', type=str, default=False,
+        help='str. Input file pattern for batch processing')
+add_arg('--model_type', '-m', type=str, default='simple',
+        help='str. LSTM model type. Options: \'simple\', \'stacked\', and \'bidirectional\''
         )
-add_arg('--n_timepoints', "-nt", default=2,
-        help='int. Number of timepoints.')
-add_arg('--output_dir', '-o', default='.', help='str. Output directory')
-add_arg('--sample_variable', '-sv', default=[],
-        help='str. Vairable name for samples.')
-add_bool_arg(parser=parser, name='man_split', input_type='str',
-             help='Manually split data into training and test sets.')
-add_arg('--selected_test_samples', '-st', nargs='+', default=[],
-        help='str. Sample IDs selected as test group.')
+add_arg('--n_timepoints', "-nt", type=int, default=2,
+        help='int. Number of timepoints')
+add_arg('--output_dir', '-o', type=str,
+        default='.', help='str. Output directory')
+add_arg('--sample_variable', '-sv', type=str, default=[],
+        help='str. Vairable name for samples')
+add_bool_arg(parser=parser, name='man_split', input_type='bool',
+             help='Manually split data into training and test sets', default=False)
+add_arg('--split_percentage', '--sp', type=float, default=0.8,
+        help='num. Training percentage of ')
+add_arg('--selected_test_samples', '-st', nargs='+', type=str, default=[],
+        help='str. Sample IDs selected as test group when --man_split was set')
 
 add_req = parser.add_argument_group(title='required arguments').add_argument
-add_req('--sample_annotation', '-sa', default=[],
-        required=True, help='str. Sample annotation .csv file.')
-add_req('--n_features', '-nf', default=[],
-        help='int. Number of features each timepoint.', required=True)
+add_req('--sample_annotation', '-sa', type=str, default=[],
+        required=True, help='str. Sample annotation .csv file')
+add_req('--n_features', '-nf', type=int, default=[],
+        help='int. Number of features each timepoint', required=True)
 
 args = parser.parse_args()
 

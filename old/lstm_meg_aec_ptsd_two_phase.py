@@ -1,4 +1,6 @@
 """
+NOTE: this won't work unless moved out of the old folder
+
 LSTM test for MEG AEC connectivity PTSD longitudinal data
 """
 # ------ libraries ------

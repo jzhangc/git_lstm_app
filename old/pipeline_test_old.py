@@ -1,7 +1,6 @@
 """
-to test small things
-
 NOTE: old version: normalization after splitting (and odd way of calculating standard deviation and SEM)
+NOTE: this won't work unless moved out of the old folder
 """
 import math
 import os

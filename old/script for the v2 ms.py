@@ -1,5 +1,7 @@
 """
-to test small things
+NOTE: this won't work unless moved out of the old folder
+
+Script for V2 ms
 """
 import math
 import os
