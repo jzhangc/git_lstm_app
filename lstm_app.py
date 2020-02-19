@@ -58,7 +58,7 @@ class AppArgParser(argparse.ArgumentParser):
     This is a sub class to argparse.ArgumentParser.
 
     Purpose
-            The help page will display when (1) not argumment was provided, or (2) there an error
+            The help page will display when (1) no argumment was provided, or (2) there an error
     """
 
     def error(self, message):
