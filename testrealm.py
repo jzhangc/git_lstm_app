@@ -2,7 +2,7 @@
 """
 Current objectives:
 [x] 1. Test argparse
-[ ] 2. Test output directory creation
+[x] 2. Test output directory creation
 [ ] 3. Test file reading
 [ ] 4. Test file processing
 [ ] 5. Test training
