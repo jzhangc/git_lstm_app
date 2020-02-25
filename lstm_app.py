@@ -81,7 +81,7 @@ Currently, the program only accepts same feature size per timepoint.
 # ------ augment definition ------
 # -- arguments --
 parser = AppArgParser(description=DESCRIPITON,
-                      epilog='Written by: {}. Current version: {}'.format(
+                      epilog='Written by: {}. Current version: {}\n\r'.format(
                           AUTHOR, __version__),
                       formatter_class=argparse.RawDescriptionHelpFormatter)
 
@@ -90,18 +90,21 @@ add_arg = parser.add_argument
 add_arg('file', nargs='*', default=[])
 add_arg('-fp', '--file_pattern', type=str, default=False,
         help='str. Input file pattern for batch processing')
-add_arg('-fa', '--file_annotation', type=str, default=False,
-        help='str. Annotation for input data files')
+add_arg('-mf', '--meta_file', type=str, default=False,
+        help='str. Meta data for input data files')
+add_arg('-mn', '--meta_file-file_name', type=str, default=False,
+        help='str. Column name for  in the meta data file')
+add_arg('-mt', '--meta_file-n_timepoints', type=str, default=False,
+        help='str. Column name for the number of timepoints')
 add_arg("-nt", '--n_timepoints', type=int, default=2,
-        help='int. Number of timepoints')
+        help='int. Number of timepoints. NOTE: only needed with single file processing')
 add_arg('-ct', '--cross_validation-type', type=str,
         choices=['kfold', 'LOO'], default='kfold', help='str. Cross validation type')
 add_arg('-cf', '--cv_fold', type=int, default=10,
         help='int. Number fo cross validation fold when --cross_validation-type=\'kfold\'')
 add_arg('-m', '--model_type', type=str, choices=['simple', 'stacked', 'bidirectional'],
         default='simple',
-        help='str. LSTM model type. Options: \'simple\', \'stacked\', and \'bidirectional\''
-        )
+        help='str. LSTM model type. Options: \'simple\', \'stacked\', and \'bidirectional\'')
 add_arg('-hu', '--hidden_unit', type=int, default=50,
         help='int. Number of hidden unit for the LSTM netework')
 add_arg('-e', '--epoches', type=int, default=500,

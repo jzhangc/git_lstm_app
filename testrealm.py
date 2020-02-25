@@ -67,55 +67,58 @@ Currently, the program only accepts same feature size per timepoint.
 
 # ------ augment definition ------
 parser = argparse.ArgumentParser(description=DESCRIPITON,
-                                 epilog='Written by: {}. Current version: {}'.format(
+                                 epilog='Written by: {}. Current version: {}\n\r'.format(
                                      AUTHOR, __version__),
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
 
 add_arg = parser.add_argument
-add_arg('file', nargs='*', default=[])
+add_arg('-mf', '--meta_file', type=str, default=False,
+        help='str. Meta data for input data files')
+add_arg('-mn', '--meta_file-file_name', type=str, default=False,
+        help='str. Column name for  in the meta data file')
+add_arg('-mt', '--meta_file-n_timepoints', type=str, default=False,
+        help='str. Column name for the number of timepoints')
 add_arg("-nt", '--n_timepoints', type=int, default=2,
-        help='int. Number of timepoints')
-add_arg('-ct', '--cross_validation-type', type=str,
-        choices=['kfold', 'LOO'], default='kfold', help='str. Cross validation type')
-add_arg('-cf', '--cv_fold', type=int, default=10,
-        help='int. Number fo cross validation fold when --cross_validation-type=\'kfold\'')
+        help='int. Number of timepoints. NOTE: only needed with single file processing')
 
-add_req = parser.add_argument_group(title='required arguments').add_argument
-add_req('-av', '--annotation_variables', type=str, nargs="+", default=[],
-        required=True, help='names of the annotation columns in the input data')
+# add_req = parser.add_argument_group(title='required arguments').add_argument
+# add_req('-av', '--annotation_variables', type=str, nargs="+", default=[],
+#         required=True, help='names of the annotation columns in the input data')
 
 args = parser.parse_args()
-
 print(args)
-
+print('\n')
+if args.meta_file and (not args.meta_file_file_name or not args.meta_file_n_timepoints):
+    parser.error(
+        'Specify both -mn/--meta_file-file_name and -mt/--meta_file-n_timepoints when -mf/--meta_file is set')
 
 # ------ local variables ------
 # ------ loacl classes ------
-class InputData(object):
-    def __init__(self, file):
-        self.input = pd.read_csv(file)
-        self.__n_samples__ = self.input.shape[0]  # pd.shape[0]: nrow
-        self.__n_annot_col__ = len(args.annotation_variables)
+# class InputData(object):
+#     def __init__(self, file):
+#         self.input = pd.read_csv(file)
+#         self.__n_samples__ = self.input.shape[0]  # pd.shape[0]: nrow
+#         self.__n_annot_col__ = len(args.annotation_variables)
 
-        self.__n_timepoints__ = args.n_timepoints
-        self.n_features = int((
-            self.input.shape[1] - self.__n_annot_col__)/self.__n_timepoints__)  # pd.shape[1]: ncol
+#         self.__n_timepoints__ = args.n_timepoints
+#         self.n_features = int((
+#             self.input.shape[1] - self.__n_annot_col__)/self.__n_timepoints__)  # pd.shape[1]: ncol
 
-        if args.cross_validation_type == 'kfold':
-            self.__cv_fold__ = args.cv_fold
-        else:
-            self.__cv_fold__ = self.__n_samples__
+#         if args.cross_validation_type == 'kfold':
+#             self.__cv_fold__ = args.cv_fold
+#         else:
+#             self.__cv_fold__ = self.__n_samples__
 
 
-MyData = InputData(file=args.file[0])
-print('\n')
-print("MyData shape: {}".format(MyData.input.shape))
-print('\n')
-print("MyData.__n_samples__: {}; MyData.__n_annot_col__: {}".format(
-    MyData.__n_samples__, MyData.__n_annot_col__))
-print('\n')
-print("MyData.__cv_fold__: {}; MyData.n_features: {}".format(
-    MyData.__cv_fold__, MyData.n_features))
+# MyData = InputData(file=args.file[0])
+# print('\n')
+# print("MyData shape: {}".format(MyData.input.shape))
+# print('\n')
+# print("MyData.__n_samples__: {}; MyData.__n_annot_col__: {}".format(
+#     MyData.__n_samples__, MyData.__n_annot_col__))
+# print('\n')
+# print("MyData.__cv_fold__: {}; MyData.n_features: {}".format(
+#     MyData.__cv_fold__, MyData.n_features))
 
 # ------ setup output folders ------
 
