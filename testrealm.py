@@ -91,16 +91,20 @@ args = parser.parse_args()
 print(args)
 print('\n')
 print(len(args.file))
-if args.meta_file and (not args.meta_file_file_name or not args.meta_file_n_timepoints):
-    parser.error(
-        'Specify both -mn/--meta_file-file_name, -mt/--meta_file-n_timepoints and -ms/--metawhen -mf/--meta_file is set')
-if (len(args.file) > 1 and args.man_split) and not args.meta_file_test_subjects:
-    parser.error(
-        'Set -ms/--meta_file-test_subjects if multiple input files are provided and -ms/--man_split is on')
 if args.man_split and (len(args.holdout_samples) == 0 or not args.meta_file_test_subjects):
     parser.error(
         'set -hs/--holdout_samples or -mts/--meta_file-test_subjects when -ms/--man_split is on.')
+if len(args.file) > 1:
+    if args.meta_file:
+        parser.error(
+            'Set -mf/--meta_file if more than one input file is provided')
+    elif not args.meta_file_file_name or not args.meta_file_n_timepoints:
+        parser.error(
+            'Specify both -mn/--meta_file-file_name, -mt/--meta_file-n_timepoints and -ms/--metawhen -mf/--meta_file is set')
 
+    if args.man_split and not args.meta_file_test_subjects:
+        parser.error(
+            'Set -ms/--meta_file-test_subjects if multiple input files are provided and -ms/--man_split is on')
 
 # ------ local variables ------
 # ------ loacl classes ------

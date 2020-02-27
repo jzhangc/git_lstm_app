@@ -141,18 +141,20 @@ add_req('-av', '--annotation_variables', type=str, nargs="+", default=[],
 args = parser.parse_args()
 
 # -- argument checks --
-if args.file_pattern and args.man_split:
-    parser.error(
-        '--man_split flag invalid if -fp or --file_pattern are set.')
-if (len(args.file) > 1 and args.man_split) and not args.meta_file_test_subjects:
-    parser.error(
-        'Set -ms/--meta_file-test_subjects if multiple input files are provided and --man_split is on')
 if args.man_split and (len(args.holdout_samples) == 0 or not args.meta_file_test_subjects):
     parser.error(
-        'set -hs/--holdout_samples or -ms/--meta_file-test_subjects when --man_split is on.')
-if not args.man_split and (args.training_percentage < 0 or args.training_percentage > 1):
-    parser.error(
-        'set -tp or --training_percentage within 0~1 when --no-man_split is on.')
+        'set -hs/--holdout_samples or -mts/--meta_file-test_subjects when -ms/--man_split is on.')
+if len(args.file) > 1:
+    if args.meta_file:
+        parser.error(
+            'Set -mf/--meta_file if more than one input file is provided')
+    elif not args.meta_file_file_name or not args.meta_file_n_timepoints:
+        parser.error(
+            'Specify both -mn/--meta_file-file_name, -mt/--meta_file-n_timepoints and -ms/--metawhen -mf/--meta_file is set')
+
+    if args.man_split and not args.meta_file_test_subjects:
+        parser.error(
+            'Set -ms/--meta_file-test_subjects if multiple input files are provided and -ms/--man_split is on')
 
 
 # ------ local variables ------
