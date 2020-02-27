@@ -6,7 +6,6 @@ NEW! phase1 based single timepoint to phase1-phase2 lstm analysis
 import math
 import os
 import datetime
-
 import numpy as np
 import pandas as pd
 from tensorflow.keras.callbacks import History  # for input argument type check

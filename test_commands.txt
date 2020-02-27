@@ -9,5 +9,6 @@ $ test commands
 
 
 ./testrealm.py \
-a.csv b.csv c.csv \
+./data/v4/lstm_aec_phases_freq1_v4.csv \
+./data/v4/lstm_aec_phases_freq2_v4.csv \
 --man_split

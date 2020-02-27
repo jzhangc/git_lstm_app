@@ -8,6 +8,7 @@ Python3 commandline application for LSTM analysis
 # import math
 import os
 import sys
+import glob  # Unix file pattern processing
 import argparse
 # import numpy as np
 import pandas as pd
@@ -30,7 +31,59 @@ from datetime import datetime
 # from custom_functions.util_functions import logging_func
 
 
+# ------ system classes ------
+class colr:
+    """
+    stole from: https://github.com/alexjc/neural-enhance
+    """
+    WHITE = '\033[0;97m'
+    WHITE_B = '\033[1;97m'
+    YELLOW = '\033[0;33m'
+    YELLOW_B = '\033[1;33m'
+    RED = '\033[0;31m'
+    RED_B = '\033[1;31m'
+    BLUE = '\033[0;94m'
+    BLUE_B = '\033[1;94m'
+    CYAN = '\033[0;36m'
+    CYAN_B = '\033[1;36m'
+    ENDC = '\033[0m'   # end colour
+
+
+class AppArgParser(argparse.ArgumentParser):
+    """
+    This is a sub class to argparse.ArgumentParser.
+
+    Purpose
+            The help page will display when (1) no argumment was provided, or (2) there is an error
+    """
+
+    def error(self, message, *lines):
+        string = "\n{}ERROR: " + message + "{}\n" + \
+            "\n".join(lines) + ("{}\n" if lines else "{}")
+        print(string.format(colr.RED_B, colr.RED, colr.ENDC))
+        self.print_help()
+        sys.exit(2)
+
+
 # ------ custom functions ------
+def error(message, *lines):
+    """
+    stole from: https://github.com/alexjc/neural-enhance
+    """
+    string = "\n{}ERROR: " + message + "{}\n" + \
+        "\n".join(lines) + ("{}\n" if lines else "{}")
+    print(string.format(colr.RED_B, colr.RED, colr.ENDC))
+    sys.exit(2)
+
+
+def warn(message, *lines):
+    """
+    stole from: https://github.com/alexjc/neural-enhance
+    """
+    string = "\n{}WARNING: " + message + "{}\n" + "\n".join(lines) + "{}\n"
+    print(string.format(colr.YELLOW_B, colr.YELLOW, colr.ENDC))
+
+
 def add_bool_arg(parser, name, help, input_type, default=False):
     """
     Purpose\n
@@ -50,22 +103,6 @@ def add_bool_arg(parser, name, help, input_type, default=False):
     group.add_argument('--no-' + name, dest=name,
                        action='store_false', help=input_type + '. ''(Not to) ' + help)
     parser.set_defaults(**{name: default})
-
-
-# ------ system classes ------
-class AppArgParser(argparse.ArgumentParser):
-    """
-    This is a sub class to argparse.ArgumentParser.
-
-    Purpose
-            The help page will display when (1) no argumment was provided, or (2) there is an error
-    """
-
-    def error(self, message):
-        sys.stderr.write('error: %s\n' % message)
-        print('\n')
-        self.print_help()
-        sys.exit(2)
 
 
 # ------ system variables -------
@@ -100,6 +137,8 @@ add_arg('-ms', '--meta_file-test_subjects', type=str, default=False,
         help='str. Column name for test subjects ID')
 add_arg("-nt", '--n_timepoints', type=int, default=2,
         help='int. Number of timepoints. NOTE: only needed with single file processing')
+add_arg('-ov', '--outcome_variable', type=str, default=[],
+        help='str. Vairable name for outcome')
 add_arg('-ct', '--cross_validation-type', type=str,
         choices=['kfold', 'LOO'], default='kfold', help='str. Cross validation type')
 add_arg('-cf', '--cv_fold', type=int, default=10,
@@ -129,28 +168,28 @@ add_arg('-pt', '--plot-type', type=str,
 
 # blow: mandatory opitonals
 add_req = parser.add_argument_group(title='required arguments').add_argument
-# add_req('-sa', '--sample_annotation', type=str, default=[],
-#         required=True, help='str. Sample annotation .csv file')
 add_req('-sv', '--sample_variable', type=str, default=[],
         required=True, help='str. Vairable name for samples')
 add_req('-av', '--annotation_variables', type=str, nargs="+", default=[],
         required=True, help='names of the annotation columns in the input data')
-# add_req('-nf', '--n_features', type=int, default=[],
-#         help='int. Number of features each timepoint', required=True)
 
 args = parser.parse_args()
 
 # -- argument checks --
+if len(sys.argv) == 1:  # display help if no argument is provided
+    parser.print_help(sys.stderr)
+    sys.exit(1)
+
 if args.man_split and (len(args.holdout_samples) == 0 or not args.meta_file_test_subjects):
     parser.error(
-        'set -hs/--holdout_samples or -mts/--meta_file-test_subjects when -ms/--man_split is on.')
+        'set -hs/--holdout_samples or -ms/--meta_file-test_subjects when -ms/--man_split is on')
 if len(args.file) > 1:
-    if args.meta_file:
+    if not args.meta_file:
         parser.error(
             'Set -mf/--meta_file if more than one input file is provided')
     elif not args.meta_file_file_name or not args.meta_file_n_timepoints:
         parser.error(
-            'Specify both -mn/--meta_file-file_name, -mt/--meta_file-n_timepoints and -ms/--metawhen -mf/--meta_file is set')
+            'Specify both -mn/--meta_file-file_name and -mt/--meta_file-n_timepoints when -mf/--meta_file is set')
 
     if args.man_split and not args.meta_file_test_subjects:
         parser.error(
@@ -158,58 +197,58 @@ if len(args.file) > 1:
 
 
 # ------ local variables ------
-res_dir = args.output_dir
-input_filenames = list()
-for i in args.file:
-    basename = os.path.basename(i)
-    filename = os.path.splitext(basename)[0]
-    input_filenames.append(filename)
+# res_dir = args.output_dir
+# input_filenames = list()
+# for i in args.file:
+#     basename = os.path.basename(i)
+#     filename = os.path.splitext(basename)[0]
+#     input_filenames.append(filename)
 
 
 # ------local classes ------
-class InputData(object):
-    def __init__(self, file):
-        self.input = pd.read_csv(file)
-        self.__n_samples__ = self.input.shape[0]  # pd.shape[0]: nrow
-        self.__n_annot_col__ = len(args.annotation_variables)
+# class InputData(object):
+#     def __init__(self, file):
+#         self.input = pd.read_csv(file)
+#         self.__n_samples__ = self.input.shape[0]  # pd.shape[0]: nrow
+#         self.__n_annot_col__ = len(args.annotation_variables)
 
-        self.__n_timepoints__ = args.n_timepoints
-        self.n_features = int((
-            self.input.shape[1] - self.__n_annot_col__)/self.__n_timepoints__)  # pd.shape[1]: ncol
+#         self.__n_timepoints__ = args.n_timepoints
+#         self.n_features = int((
+#             self.input.shape[1] - self.__n_annot_col__) // self.__n_timepoints__)  # pd.shape[1]: ncol
 
-        if args.cross_validation_type == 'kfold':
-            self.__cv_fold__ = args.cv_fold
-        else:
-            self.__cv_fold__ = self.__n_samples__
+#         if args.cross_validation_type == 'kfold':
+#             self.__cv_fold__ = args.cv_fold
+#         else:
+#             self.__cv_fold__ = self.__n_samples__
 
 
 # ------ setup output folders ------ n
-try:
-    os.makedirs(res_dir)
-except FileExistsError:
-    res_dir = res_dir+'_'+datetime.now().strftime("%Y%m%d-%H%M%S")
-    os.makedirs(res_dir)
-    print('Output directory already exists. Use {} instread.'.format(res_dir))
-except OSError:
-    print('Creation of directory failed: {}'.format(res_dir))
-else:
-    print("Output directory created: {}".format(res_dir))
+# try:
+#     os.makedirs(res_dir)
+# except FileExistsError:
+#     res_dir = res_dir+'_'+datetime.now().strftime("%Y%m%d-%H%M%S")
+#     os.makedirs(res_dir)
+#     print('Output directory already exists. Use {} instread.'.format(res_dir))
+# except OSError:
+#     print('Creation of directory failed: {}'.format(res_dir))
+# else:
+#     print("Output directory created: {}".format(res_dir))
 
-for i in input_filenames:
-    sub_dir = os.path.join(res_dir, i)
-    try:
-        os.makedirs(sub_dir)
-        os.makedirs(os.path.join(sub_dir, 'fit'))
-        os.makedirs(os.path.join(sub_dir, 'cv_models'))
-        os.makedirs(os.path.join(sub_dir, 'intermediate_data'))
-    except FileExistsError:
-        print('\tCreation of sub-directory failed (already exists): {}'.format(sub_dir))
-        pass
-    except OSError:
-        print('\tCreation of sub-directory failed: {}'.format(sub_dir))
-        pass
-    else:
-        print('\tSub-directory created in {} for file: {}'.format(res_dir, i))
+# for i in input_filenames:
+#     sub_dir = os.path.join(res_dir, i)
+#     try:
+#         os.makedirs(sub_dir)
+#         os.makedirs(os.path.join(sub_dir, 'fit'))
+#         os.makedirs(os.path.join(sub_dir, 'cv_models'))
+#         os.makedirs(os.path.join(sub_dir, 'intermediate_data'))
+#     except FileExistsError:
+#         print('\tCreation of sub-directory failed (already exists): {}'.format(sub_dir))
+#         pass
+#     except OSError:
+#         print('\tCreation of sub-directory failed: {}'.format(sub_dir))
+#         pass
+#     else:
+#         print('\tSub-directory created in {} for file: {}'.format(res_dir, i))
 
 # ------ training pipeline ------
 # -- read data --
