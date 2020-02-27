@@ -65,6 +65,7 @@ Currently, the program only accepts same feature size per timepoint.
 --------------------------------------------------------------------
 """
 
+
 # ------ augment definition ------
 parser = argparse.ArgumentParser(description=DESCRIPITON,
                                  epilog='Written by: {}. Current version: {}\n\r'.format(
@@ -72,25 +73,34 @@ parser = argparse.ArgumentParser(description=DESCRIPITON,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
 
 add_arg = parser.add_argument
+add_arg('file', nargs='*', default=[])
 add_arg('-mf', '--meta_file', type=str, default=False,
         help='str. Meta data for input data files')
 add_arg('-mn', '--meta_file-file_name', type=str, default=False,
         help='str. Column name for  in the meta data file')
 add_arg('-mt', '--meta_file-n_timepoints', type=str, default=False,
         help='str. Column name for the number of timepoints')
+add_arg('-ms', '--meta_file-test_subjects', type=str, default=False,
+        help='str. Column name for test subjects ID')
 add_arg("-nt", '--n_timepoints', type=int, default=2,
         help='int. Number of timepoints. NOTE: only needed with single file processing')
-
-# add_req = parser.add_argument_group(title='required arguments').add_argument
-# add_req('-av', '--annotation_variables', type=str, nargs="+", default=[],
-#         required=True, help='names of the annotation columns in the input data')
+add_bool_arg(parser=parser, name='man_split', input_type='flag',
+             help='Manually split data into training and test sets', default=False)
 
 args = parser.parse_args()
 print(args)
 print('\n')
+print(len(args.file))
 if args.meta_file and (not args.meta_file_file_name or not args.meta_file_n_timepoints):
     parser.error(
-        'Specify both -mn/--meta_file-file_name and -mt/--meta_file-n_timepoints when -mf/--meta_file is set')
+        'Specify both -mn/--meta_file-file_name, -mt/--meta_file-n_timepoints and -ms/--metawhen -mf/--meta_file is set')
+if (len(args.file) > 1 and args.man_split) and not args.meta_file_test_subjects:
+    parser.error(
+        'Set -ms/--meta_file-test_subjects if multiple input files are provided and -ms/--man_split is on')
+if args.man_split and (len(args.holdout_samples) == 0 or not args.meta_file_test_subjects):
+    parser.error(
+        'set -hs/--holdout_samples or -mts/--meta_file-test_subjects when -ms/--man_split is on.')
+
 
 # ------ local variables ------
 # ------ loacl classes ------

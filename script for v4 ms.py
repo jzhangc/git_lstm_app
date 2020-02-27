@@ -44,14 +44,6 @@ raw.shape
 # ---- key variable
 n_features = 10
 n_folds = 10
-# selected_features = [['PN09', 'PP22', 'PN14'],
-#                      ['PN17', 'PP12', 'PN20'],
-#                      ['PN10', 'PP19', 'PN16'],
-#                      ['PN19', 'PP15', 'PN13'],
-#                      ['PP10', 'PP20', 'PN04'],
-#                      ['PP20', 'PN08', 'PP21']]  # order: freq 1~7
-
-# new v4
 selected_features = [['PP19', 'PN14', 'PN05'],
                      ['PN08', 'PP19', 'PN21'],
                      ['PN10', 'PP19', 'PN16'],

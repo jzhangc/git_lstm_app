@@ -96,6 +96,8 @@ add_arg('-mn', '--meta_file-file_name', type=str, default=False,
         help='str. Column name for  in the meta data file')
 add_arg('-mt', '--meta_file-n_timepoints', type=str, default=False,
         help='str. Column name for the number of timepoints')
+add_arg('-ms', '--meta_file-test_subjects', type=str, default=False,
+        help='str. Column name for test subjects ID')
 add_arg("-nt", '--n_timepoints', type=int, default=2,
         help='int. Number of timepoints. NOTE: only needed with single file processing')
 add_arg('-ct', '--cross_validation-type', type=str,
@@ -141,16 +143,16 @@ args = parser.parse_args()
 # -- argument checks --
 if args.file_pattern and args.man_split:
     parser.error(
-        '-ms or --man_split flag invalid if -fp or --file_pattern are set.')
-if len(args.file) > 1 and args.man_split:
+        '--man_split flag invalid if -fp or --file_pattern are set.')
+if (len(args.file) > 1 and args.man_split) and not args.meta_file_test_subjects:
     parser.error(
-        '-ms or --man_split invalid if multiple input files are provided')
-if args.man_split and len(args.holdout_samples) == 0:
+        'Set -ms/--meta_file-test_subjects if multiple input files are provided and --man_split is on')
+if args.man_split and (len(args.holdout_samples) == 0 or not args.meta_file_test_subjects):
     parser.error(
-        'set -hs or --holdout_samples when -ms or --man_split flag is on.')
+        'set -hs/--holdout_samples or -ms/--meta_file-test_subjects when --man_split is on.')
 if not args.man_split and (args.training_percentage < 0 or args.training_percentage > 1):
     parser.error(
-        'set -tp or --training_percentage within 0~1 when -ms or --no-man_split is on.')
+        'set -tp or --training_percentage within 0~1 when --no-man_split is on.')
 
 
 # ------ local variables ------
@@ -179,7 +181,7 @@ class InputData(object):
             self.__cv_fold__ = self.__n_samples__
 
 
-# ------ setup output folders ------
+# ------ setup output folders ------ n
 try:
     os.makedirs(res_dir)
 except FileExistsError:

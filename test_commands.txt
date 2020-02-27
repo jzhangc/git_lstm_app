@@ -6,3 +6,7 @@ $ test commands
 ./testrealm.py \
 ./data/new_lstm_aec_phase1_base_freq2.csv \
 -nt=2 -ct='kfold' -av subject, PCL, group
+
+
+./testrealm.py \
+a.csv b.csv c.csv \
