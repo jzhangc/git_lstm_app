@@ -178,12 +178,12 @@ class FileLoader(threading.Thread):
         # load meta data
         if len(self.files) > 1:  # load meta data file
             self.meta_file = pd.read_csv(args.meta_file)
-            self.__n_timepoints_list__, self.__test_subjects_list__, self.__anntation_var_list__ = [
+            self._n_timepoints_list, self._test_subjects_list, self._anntation_var_list = [
                 np.array(self.meta_file[args.meta_file_n_timepoints])], [i.split(",") for i in np.array(
                     self.meta_file[args.meta_file_test_subjects])], [i.split(",") for i in np.array(
                         self.meta_file[args.meta_file_annotation])]
         else:
-            self.__n_timepoints_list__, self.__test_subjects_list__, self.__anntation_var_list__ = None, None, None
+            self._n_timepoints_list, self._test_subjects_list, self._anntation_var_list = None, None, None
 
         if args.working_dir:
             self.cwd = args.working_dir
@@ -205,23 +205,23 @@ class FileLoader(threading.Thread):
             dat = pd.read_csv(filename, engine='python')
             # pd.shape[1]: ncol
             n_feature = int(
-                (dat.shape[1] - self.__n_annot_col__) // self.__n_timepoints__)
+                (dat.shape[1] - self._n_annot_col) // self._n_timepoints)
 
 
 # class InputData(object):
 #     def __init__(self, file):
 #         self.input = pd.read_csv(file)
-#         self.__n_samples__ = self.input.shape[0]  # pd.shape[0]: nrow
-#         self.__n_annot_col__ = len(args.annotation_variable)
+#         self.__n_samples = self.input.shape[0]  # pd.shape[0]: nrow
+#         self.__n_annot_col = len(args.annotation_variable)
 
 #         self.__n_timepoints__ = args.n_timepoints
 #         self.n_features = int((
-#             self.input.shape[1] - self.__n_annot_col__) // self.__n_timepoints__)  # pd.shape[1]: ncol
+#             self.input.shape[1] - self._n_annot_col) // self._n_timepoints)  # pd.shape[1]: ncol
 
 #         if args.cross_validation_type == 'kfold':
-#             self.__cv_fold__ = args.cv_fold
+#             self._cv_fold = args.cv_fold
 #         else:
-#             self.__cv_fold__ = self.__n_samples__
+#             self._cv_fold = self._n_samples
 
 # ------ local variables ------
 # file_list = args.file
