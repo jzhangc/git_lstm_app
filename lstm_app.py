@@ -125,6 +125,15 @@ parser = AppArgParser(description=DESCRIPITON,
 # below: postional and optional optionals
 add_arg = parser.add_argument
 add_arg('file', nargs='*', default=[])
+add_arg('-sv', '--sample_variable', type=str, default=[],
+        help='str. Vairable name for samples. NOTE: only needed with single file processing')
+add_arg('-av', '--annotation_variables', type=str, nargs="+", default=[],
+        help='names of the annotation columns in the input data. NOTE: only needed with single file processing')
+add_arg("-nt", '--n_timepoints', type=int, default=2,
+        help='int. Number of timepoints. NOTE: only needed with single file processing')
+add_arg('-ov', '--outcome_variable', type=str, default=[],
+        help='str. Vairable name for outcome. NOTE: only needed with single file processing')
+
 add_arg('-fp', '--file_pattern', type=str, default=False,
         help='str. Input file pattern for batch processing')
 add_arg('-mf', '--meta_file', type=str, default=False,
@@ -133,12 +142,13 @@ add_arg('-mn', '--meta_file-file_name', type=str, default=False,
         help='str. Column name for  in the meta data file')
 add_arg('-mt', '--meta_file-n_timepoints', type=str, default=False,
         help='str. Column name for the number of timepoints')
-add_arg('-ms', '--meta_file-test_subjects', type=str, default=False,
+add_arg('-ms', '--meta_file-test_subjects', type=str, nargs="+", default=False,
         help='str. Column name for test subjects ID')
-add_arg("-nt", '--n_timepoints', type=int, default=2,
-        help='int. Number of timepoints. NOTE: only needed with single file processing')
-add_arg('-ov', '--outcome_variable', type=str, default=[],
-        help='str. Vairable name for outcome')
+add_arg('-ma', '--meta_file-annotation', type=str, nargs="+", default=False,
+        help='str. Column name for annotation columns')
+add_arg('-mi', '--meta_file-sample_id', type=str, default=False,
+        help='str. Column name for sample subjects ID')
+
 add_arg('-ct', '--cross_validation-type', type=str,
         choices=['kfold', 'LOO'], default='kfold', help='str. Cross validation type')
 add_arg('-cf', '--cv_fold', type=int, default=10,
@@ -166,13 +176,6 @@ add_bool_arg(parser=parser, name='plot', input_type='flag',
 add_arg('-pt', '--plot-type', type=str,
         choices=['scatter', 'bar'], default='scatter', help='str. Plot type')
 
-# blow: mandatory opitonals
-add_req = parser.add_argument_group(title='required arguments').add_argument
-add_req('-sv', '--sample_variable', type=str, default=[],
-        required=True, help='str. Vairable name for samples')
-add_req('-av', '--annotation_variables', type=str, nargs="+", default=[],
-        required=True, help='names of the annotation columns in the input data')
-
 args = parser.parse_args()
 
 # -- argument checks --
@@ -187,14 +190,21 @@ if len(args.file) > 1:
     if not args.meta_file:
         parser.error(
             'Set -mf/--meta_file if more than one input file is provided')
-    elif not args.meta_file_file_name or not args.meta_file_n_timepoints:
+    elif not all([args.meta_file_file_name, args.meta_file_n_timepoints, args.meta_file_annotation, args.meta_file_sample_id]):
         parser.error(
-            'Specify both -mn/--meta_file-file_name and -mt/--meta_file-n_timepoints when -mf/--meta_file is set')
+            'Specify -mn/--meta_file-file_name, -mt/--meta_file-n_timepoints, -ma/--meta_file-annotation and -mi/--meta_file-sample_id when -mf/--meta_file is set')
 
     if args.man_split and not args.meta_file_test_subjects:
         parser.error(
             'Set -ms/--meta_file-test_subjects if multiple input files are provided and -ms/--man_split is on')
+else:
+    if any([len(i) < 1 for i in [args.sample_variable, args.annotation_variable, args.outcome_variable]]):
+        parser.error(
+            "Set -sv/--sample_variable, -av/--annotation_variable, -ov/--outcome_variable when single input file is set")
 
+if not args.file_pattern and len(args.outcome_variable) != 1:
+    # NOTE: check outcome variables in the file loader
+    parser.error('Please set one and only one outcome variable')
 
 # ------ local variables ------
 # res_dir = args.output_dir

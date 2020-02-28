@@ -121,6 +121,16 @@ parser = AppArgParser(description=DESCRIPITON,
 
 add_arg = parser.add_argument
 add_arg('file', nargs='*', default=[])
+add_arg('-sv', '--sample_variable', type=str, default=[],
+        help='str. Vairable name for samples. NOTE: only needed with single file processing')
+add_arg('-av', '--annotation_variable', type=str, nargs="+", default=[],
+        help='names of the annotation columns in the input data. NOTE: only needed with single file processing')
+add_arg("-nt", '--n_timepoints', type=int, default=2,
+        help='int. Number of timepoints. NOTE: only needed with single file processing')
+add_arg('-ov', '--outcome_variable', type=str, default=[],
+        help='str. Vairable name for outcome. NOTE: only needed with single file processing')
+
+
 add_arg('-fp', '--file_pattern', type=str, default=False,
         help='str. Input file pattern for batch processing')
 add_arg('-wd', "--working_dir", type=str, default=False,
@@ -133,70 +143,65 @@ add_arg('-mt', '--meta_file-n_timepoints', type=str, default=False,
         help='str. Column name for the number of timepoints')
 add_arg('-ms', '--meta_file-test_subjects', type=str, default=False,
         help='str. Column name for test subjects ID')
-add_arg("-nt", '--n_timepoints', type=int, default=2,
-        help='int. Number of timepoints. NOTE: only needed with single file processing')
 add_bool_arg(parser=parser, name='man_split', input_type='flag',
              help='Manually split data into training and test sets', default=False)
-add_arg('-hs', '--holdout_samples', nargs='+', type=str, default=[],
-        help='str. Sample IDs selected as holdout test group when --man_split was set')
-add_arg('-ov', '--outcome_variable', type=str, default=[],
-        help='str. Vairable name for outcome')
+add_arg('-ma', '--meta_file-annotation', type=str, default=False,
+        help='str. Column name for annotation columns')
+add_arg('-mi', '--meta_file-sample_id', type=str, default=False,
+        help='str. Column name for sample subjects ID')
 
 args = parser.parse_args()
 print(args)
 print('\n')
 print(len(args.file))
 
-if len(sys.argv) == 1:
-    parser.print_help(sys.stderr)
-    sys.exit(1)
-if args.man_split and (len(args.holdout_samples) == 0 or not args.meta_file_test_subjects):
-    parser.error(
-        'set -hs/--holdout_samples or -ms/--meta_file-test_subjects when -ms/--man_split is on')
-if len(args.file) > 1:
-    if not args.meta_file:
-        parser.error(
-            'Set -mf/--meta_file if more than one input file is provided')
-    elif not args.meta_file_file_name or not args.meta_file_n_timepoints:
-        parser.error(
-            'Specify both -mn/--meta_file-file_name and -mt/--meta_file-n_timepoints when -mf/--meta_file is set')
-
-    if args.man_split and not args.meta_file_test_subjects:
-        parser.error(
-            'Set -ms/--meta_file-test_subjects if multiple input files are provided and -ms/--man_split is on')
-
-if len(args.outcome_variable) != 1:  # change this
-    parser.error('Please set one and only one outcome variable')
-
-
 # ------ loacl classes ------
-class FileLoader(threading.Thread):
-    def __init__(self):
-        # make the thread a daemon object
-        super(FileLoader, self).__init__(daemon=True)
-        self.files = glob.glob(args.file_pattern)
+# class FileLoader(threading.Thread):
+#     """
+#     sub-classing a threading.Thread class to load data files.
+#     """
 
-        if len(self.files) == 0:
-            error("No files matching the specified file pattern: {}".format(args.file_pattern),
-                  'Put all the files in the folder first.')
+#     def __init__(self):
+#         # make the thread a daemon object
+#         super(FileLoader, self).__init__(daemon=True)
+#         self.files = glob.glob(args.file_pattern)
 
-        self.meta_file = pd.read_csv(args.meta_file)
-        self.__n_timepoints_list__ = self.meta_file.iloc[args.meta_file_n_timepoints]
-        self.__test_subjects_list__ = self.meta_file.iloc[args.meta_file_test_subjects]
+#         if len(self.files) == 0:
+#             error("No files matching the specified file pattern: {}".format(args.file_pattern),
+#                   'Put all the files in the folder first.')
 
-        if args.working_dir:
-            self.cwd = args.working_dir
-        else:
-            self.cwd = os.getcwd()
+#         self.meta_file = pd.read_csv(args.meta_file)
+#         self.__n_timepoints_list__ = self.meta_file[args.meta_file_n_timepoints]
+#         self.__test_subjects_list__ = self.meta_file[args.meta_file_test_subjects]
 
-        self.start()
+#         if args.working_dir:
+#             self.cwd = args.working_dir
+#         else:
+#             self.cwd = os.getcwd()
+
+#         self.start()  # why is it here?
+
+#     def run(self):
+#         while True:
+#             for file in self.files:
+#                 self.file_processing(file)
+
+#     def file_processing(self, file):
+#         filename = os.path.join(self.cwd, file)
+#         file_basename = os.path.basename(file)
+
+#         try:
+#             dat = pd.read_csv(filename, engine='python')
+#             # pd.shape[1]: ncol
+#             n_feature = int(
+#                 (dat.shape[1] - self.__n_annot_col__) // self.__n_timepoints__)
 
 
 # class InputData(object):
 #     def __init__(self, file):
 #         self.input = pd.read_csv(file)
 #         self.__n_samples__ = self.input.shape[0]  # pd.shape[0]: nrow
-#         self.__n_annot_col__ = len(args.annotation_variables)
+#         self.__n_annot_col__ = len(args.annotation_variable)
 
 #         self.__n_timepoints__ = args.n_timepoints
 #         self.n_features = int((
@@ -207,7 +212,6 @@ class FileLoader(threading.Thread):
 #         else:
 #             self.__cv_fold__ = self.__n_samples__
 
-
 # ------ local variables ------
 # file_list = args.file
 # if len(file_list) > 1:
@@ -215,19 +219,16 @@ class FileLoader(threading.Thread):
 # else:
 #     n_timepoint_list, test_subj_list, outcome_list = None, None, None
 
-
 # ------ setup output folders ------
 
 # ------ training pipeline ------
 # -- read data --
-
 
 # -- file processing --
 
 # -- training and export --
 
 # -- model evaluation and plotting --
-
 
 # ------ process/__main__ statement ------
 # MyData = InputData(file=args.file[0])
@@ -240,6 +241,17 @@ class FileLoader(threading.Thread):
 # print("MyData.__cv_fold__: {}; MyData.n_features: {}".format(
 #     MyData.__cv_fold__, MyData.n_features))
 
-
 # if __name__ == '__main__':
 #     pass
+
+df = glob.glob('./data/v4/*.csv')[0]
+dat = pd.read_csv(os.path.join(
+    os.getcwd(), df), engine='python')
+
+os.path.basename(df)
+
+f = "./data/file_annot.csv"
+annot = pd.read_csv(os.path.join(
+    os.getcwd(), f), engine='python')
+
+annot.loc[annot['file'] == os.path.basename(df)]
