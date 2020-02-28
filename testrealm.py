@@ -16,7 +16,7 @@ import glob
 import threading
 import argparse
 from datetime import datetime
-# import numpy as np
+import numpy as np
 import pandas as pd
 # from tensorflow.keras.callbacks import History  # for input argument type check
 # from matplotlib import pyplot as plt
@@ -155,46 +155,57 @@ print(args)
 print('\n')
 print(len(args.file))
 
+
 # ------ loacl classes ------
-# class FileLoader(threading.Thread):
-#     """
-#     sub-classing a threading.Thread class to load data files.
-#     """
+class FileLoader(threading.Thread):
+    """
+    sub-classing a threading.Thread class to load data files.
+    """
 
-#     def __init__(self):
-#         # make the thread a daemon object
-#         super(FileLoader, self).__init__(daemon=True)
-#         self.files = glob.glob(args.file_pattern)
+    def __init__(self):
+        # make the thread a daemon object
+        super(FileLoader, self).__init__(daemon=True)
 
-#         if len(self.files) == 0:
-#             error("No files matching the specified file pattern: {}".format(args.file_pattern),
-#                   'Put all the files in the folder first.')
+        # load file names strings
+        if args.file_pattern:
+            self.files = glob.glob(args.file_pattern)
+            if len(self.files) == 0:
+                error("No files matching the specified file pattern: {}".format(args.file_pattern),
+                      'Put all the files in the folder first.')
+        else:
+            self.files = args.file
 
-#         self.meta_file = pd.read_csv(args.meta_file)
-#         self.__n_timepoints_list__ = self.meta_file[args.meta_file_n_timepoints]
-#         self.__test_subjects_list__ = self.meta_file[args.meta_file_test_subjects]
+        # load meta data
+        if len(self.files) > 1:  # load meta data file
+            self.meta_file = pd.read_csv(args.meta_file)
+            self.__n_timepoints_list__, self.__test_subjects_list__, self.__anntation_var_list__ = [
+                np.array(self.meta_file[args.meta_file_n_timepoints])], [i.split(",") for i in np.array(
+                    self.meta_file[args.meta_file_test_subjects])], [i.split(",") for i in np.array(
+                        self.meta_file[args.meta_file_annotation])]
+        else:
+            self.__n_timepoints_list__, self.__test_subjects_list__, self.__anntation_var_list__ = None, None, None
 
-#         if args.working_dir:
-#             self.cwd = args.working_dir
-#         else:
-#             self.cwd = os.getcwd()
+        if args.working_dir:
+            self.cwd = args.working_dir
+        else:
+            self.cwd = os.getcwd()
 
-#         self.start()  # why is it here?
+        self.start()
 
-#     def run(self):
-#         while True:
-#             for file in self.files:
-#                 self.file_processing(file)
+    def run(self):
+        while True:
+            for file in self.files:
+                self.file_processing(file)
 
-#     def file_processing(self, file):
-#         filename = os.path.join(self.cwd, file)
-#         file_basename = os.path.basename(file)
+    def file_processing(self, file):
+        filename = os.path.join(self.cwd, file)
+        file_basename = os.path.basename(file)
 
-#         try:
-#             dat = pd.read_csv(filename, engine='python')
-#             # pd.shape[1]: ncol
-#             n_feature = int(
-#                 (dat.shape[1] - self.__n_annot_col__) // self.__n_timepoints__)
+        try:
+            dat = pd.read_csv(filename, engine='python')
+            # pd.shape[1]: ncol
+            n_feature = int(
+                (dat.shape[1] - self.__n_annot_col__) // self.__n_timepoints__)
 
 
 # class InputData(object):
@@ -243,7 +254,6 @@ print(len(args.file))
 
 # if __name__ == '__main__':
 #     pass
-
 df = glob.glob('./data/v4/*.csv')[0]
 dat = pd.read_csv(os.path.join(
     os.getcwd(), df), engine='python')
