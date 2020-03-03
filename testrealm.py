@@ -38,6 +38,10 @@ import pandas as pd
 
 
 # ------ custom functions ------
+# below: a lambda funciton to flatten the nested list  into list
+def flatten(x): return [item for sublist in x for item in sublist]
+
+
 def add_bool_arg(parser, name, help, input_type, default=False):
     """
     Purpose\n
@@ -122,34 +126,62 @@ parser = AppArgParser(description=DESCRIPITON,
 
 add_arg = parser.add_argument
 add_arg('file', nargs='*', default=[])
+add_arg('-wd', "--working_dir", type=str, default=False,
+        help='str. Working directory if not the current one')
+
 add_arg('-si', '--sample_id', type=str, default=[],
         help='str. Vairable name for sample ID. NOTE: only needed with single file processing')
-add_arg('-av', '--annotation_variable', type=str, nargs="+", default=[],
+add_arg('-av', '--annotation_variables', type=str, nargs="+", default=[],
         help='names of the annotation columns in the input data. NOTE: only needed with single file processing')
 add_arg("-nt", '--n_timepoints', type=int, default=2,
         help='int. Number of timepoints. NOTE: only needed with single file processing')
 add_arg('-ov', '--outcome_variable', type=str, default=[],
         help='str. Vairable name for outcome. NOTE: only needed with single file processing')
 
-
 add_arg('-fp', '--file_pattern', type=str, default=False,
         help='str. Input file pattern for batch processing')
-add_arg('-wd', "--working_dir", type=str, default=False,
-        help='str. Working directory if not the current one')
 add_arg('-mf', '--meta_file', type=str, default=False,
         help='str. Meta data for input data files')
 add_arg('-mn', '--meta_file-file_name', type=str, default=False,
         help='str. Column name for  in the meta data file')
 add_arg('-mt', '--meta_file-n_timepoints', type=str, default=False,
         help='str. Column name for the number of timepoints')
-add_arg('-ms', '--meta_file-test_subjects', type=str, default=False,
-        help='str. Column name for test subjects ID')
-add_bool_arg(parser=parser, name='man_split', input_type='flag',
-             help='Manually split data into training and test sets', default=False)
 add_arg('-ma', '--meta_file-annotation', type=str, default=False,
         help='str. Column name for annotation columns')
 add_arg('-mi', '--meta_file-sample_id', type=str, default=False,
         help='str. Column name for sample subjects ID')
+add_arg('-mo', '--meta_file-outcome_var', type=str, default=False,
+        help='str. Column name for outcome variable.')
+
+add_bool_arg(parser=parser, name='man_split', input_type='flag',
+             help='Manually split data into training and test sets', default=False)
+add_arg('-hs', '--holdout_samples', nargs='+', type=str, default=[],
+        help='str. Sample IDs selected as holdout test group when --man_split was set')
+add_arg('-mh', '--meta_file-holdout_samples', type=str, default=False,
+        help='str. Column name for test subjects ID')
+
+add_arg('-ct', '--cross_validation-type', type=str,
+        choices=['kfold', 'LOO'], default='kfold', help='str. Cross validation type')
+add_arg('-cf', '--cv_fold', type=int, default=10,
+        help='int. Number fo cross validation fold when --cross_validation-type=\'kfold\'')
+add_arg('-m', '--model_type', type=str, choices=['simple', 'stacked', 'bidirectional'],
+        default='simple',
+        help='str. LSTM model type. Options: \'simple\', \'stacked\', and \'bidirectional\'')
+add_arg('-hu', '--hidden_unit', type=int, default=50,
+        help='int. Number of hidden unit for the LSTM netework')
+add_arg('-e', '--epoches', type=int, default=500,
+        help='int. Number of epoches for LSTM modelling')
+add_arg('-b', '--batch_size', type=int, default=32,
+        help='int. The batch size for LSTM modeling')
+add_arg('--tp', '--training_percentage', type=float, default=0.8,
+        help='num, range: 0~1. Split percentage for training set when --no-man_split is set')
+add_arg('-o', '--output_dir', type=str,
+        default='.', help='str. Output directory')
+add_arg('-rs', '--random_state', type=int, default=1, help='int. Random state')
+add_bool_arg(parser=parser, name='plot', input_type='flag',
+             help='Explort a scatter plot', default=False)
+add_arg('-pt', '--plot-type', type=str,
+        choices=['scatter', 'bar'], default='scatter', help='str. Plot type')
 
 args = parser.parse_args()
 print(args)
@@ -180,6 +212,7 @@ class FileProcesser(threading.Thread):
         while True:
             try:
                 file = self.work_queue.get()
+                file_processing(file)
             finally:
                 self.work_queue.task_done()
 
@@ -192,10 +225,19 @@ class FileProcesser(threading.Thread):
             # pd.shape[1]: ncol
             n_feature = int(
                 (dat.shape[1] - self._n_annot_col) // self._n_timepoints)
+        except Exception as e:
+            warn('Could not load the file {}'.format(file_basename))
 
 
 class DataLoader(object):
-    def __init__(self, file):
+    """
+    Data loading module
+
+    To do:
+        [ ] add length check for outcome variable values
+    """
+
+    def __init__(self):
         # load file names strings
         if args.file_pattern:
             self.files = glob.glob(args.file_pattern)
@@ -205,20 +247,30 @@ class DataLoader(object):
         else:
             self.files = args.file
 
+        # setup a working queue
+        self.working_queue = queue.Queue()
+
         # load meta data
         if len(self.files) > 1:  # load meta data file
             self.meta_file = pd.read_csv(args.meta_file)
-            self._file_basename = [os.path.basename(n) for n in df]
-            self._n_timepoints_list, self._test_subjects_list, self._anntation_var_list, self._sample_id_var_list = [
-                np.array(self.meta_file[args.meta_file_n_timepoints])], [i.split(",") for i in np.array(
-                    self.meta_file[args.meta_file_test_subjects])], [i.split(",") for i in np.array(
-                        self.meta_file[args.meta_file_annotation])], [np.array(self.meta_file[args.meta_file_sample_id])]
-            self._timepoints_dict, self._test_subj_dict, self._annot_var_dict, self._sample_id_var_dict = dict(
-                zip(self._file_basename, self._n_timepoints_list)),
-            dict(zip(self._file_basename, self._test_subjects_list)), dict(
-                zip(self._file_basename, self._annotation_var_list)), dict(zip(self._file_basename, self._sample_id_var_list))
+            self._fn = [i.split(',') for i in np.array(
+                self.meta_file[args.meta_file_file_name])]
+            self._fn = flatten(self._fn)
+            self._n_timepoints_list, self._holdout_samples_list, self._annotation_var_list, self._sample_id_var_list, self._outcome_var_list = flatten([
+                np.array(self.meta_file[args.meta_file_n_timepoints])]), [i.split(',') for i in np.array(
+                    self.meta_file[args.meta_file_holdout_samples])], [i.split(',') for i in np.array(
+                        self.meta_file[args.meta_file_annotation])], [np.array(self.meta_file[args.meta_file_sample_id])], [i.split(',') for i in np.array(
+                            self.meta_file[args.meta_file_outcome_var])]
+            self._n_timepoints_dict, self._holdout_dict, self._annot_var_dict, self._sample_id_var_dict, self._outcome_var_dict = dict(
+                zip(self._fn, self._n_timepoints_list)), dict(zip(self._fn, self._holdout_samples_list)), dict(
+                zip(self._fn, self._annotation_var_list)), dict(zip(self._fn, self._sample_id_var_list)), dict(
+                zip(self._fn, self._outcome_var_list))
+
+            self._n_timepoints, self._holdout, self._annot_var, self._sample_id_var, self._outcome_var = None, None, None, None, None
         else:
-            self._n_timepoints_dict, self._test_subjects_dict, self._anntation_var_dict, self._sample_id_var_dict = None, None, None, None
+            self._n_timepoints_dict, self._holdout_samples_dict, self._anntation_var_dict, self._sample_id_var_dict, self._outcome_var_dict = None, None, None, None, None
+            self._n_timepoints, self._holdout, self._annot_var = args.n_timepoints, args.holdout_samples, args.annotation_variables
+            self._sample_id_var, self._outcome_var = args.sample_id, args.outcome_variable
 
         # setup working director
         if args.working_dir:
@@ -245,6 +297,15 @@ class DataLoader(object):
 
 # ------ training pipeline ------
 # -- read data --
+# print('mydata.cwd: {}'.format(mydata.cwd))
+# print('self._n_timepoints: {}, self._holdout:{}, self._annot_var:{}, self._sample_id_var:{}'.format(
+#     mydata._n_timepoints, mydata._holdout, mydata._annot_var, mydata._sample_id_var))
+
+# print('self._n_timepoints_dict: {}'.format(mydata._n_timepoints_dict))
+# print('\n')
+# print('self._holdout_dict:{}'.format(mydata._holdout_dict))
+# print('\n')
+# print('self._outcome_var_dict'.format(mydata._outcome_var_dict))
 
 # -- file processing --
 
@@ -253,15 +314,5 @@ class DataLoader(object):
 # -- model evaluation and plotting --
 
 # ------ process/__main__ statement ------
-# MyData = InputData(file=args.file[0])
-# print('\n')
-# print("MyData shape: {}".format(MyData.input.shape))
-# print('\n')
-# print("MyData.__n_samples__: {}; MyData.__n_annot_col__: {}".format(
-#     MyData.__n_samples__, MyData.__n_annot_col__))
-# print('\n')
-# print("MyData.__cv_fold__: {}; MyData.n_features: {}".format(
-#     MyData.__cv_fold__, MyData.n_features))
-
-# if __name__ == '__main__':
-#     pass
+if __name__ == '__main__':
+    mydata = DataLoader()

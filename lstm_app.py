@@ -125,6 +125,9 @@ parser = AppArgParser(description=DESCRIPITON,
 # below: postional and optional optionals
 add_arg = parser.add_argument
 add_arg('file', nargs='*', default=[])
+add_arg('-wd', "--working_dir", type=str, default=False,
+        help='str. Working directory if not the current one')
+
 add_arg('-si', '--sample_id', type=str, default=[],
         help='str. Vairable name for sample ID. NOTE: only needed with single file processing')
 add_arg('-av', '--annotation_variables', type=str, nargs="+", default=[],
@@ -134,6 +137,7 @@ add_arg("-nt", '--n_timepoints', type=int, default=2,
 add_arg('-ov', '--outcome_variable', type=str, default=[],
         help='str. Vairable name for outcome. NOTE: only needed with single file processing')
 
+
 add_arg('-fp', '--file_pattern', type=str, default=False,
         help='str. Input file pattern for batch processing')
 add_arg('-mf', '--meta_file', type=str, default=False,
@@ -142,12 +146,20 @@ add_arg('-mn', '--meta_file-file_name', type=str, default=False,
         help='str. Column name for  in the meta data file')
 add_arg('-mt', '--meta_file-n_timepoints', type=str, default=False,
         help='str. Column name for the number of timepoints')
-add_arg('-ms', '--meta_file-test_subjects', type=str, nargs="+", default=False,
-        help='str. Column name for test subjects ID')
+
 add_arg('-ma', '--meta_file-annotation', type=str, nargs="+", default=False,
         help='str. Column name for annotation columns')
 add_arg('-mi', '--meta_file-sample_id', type=str, default=False,
         help='str. Column name for sample subjects ID')
+add_arg('-mo', '--meta_file-outcome_var', type=str, default=False,
+        help='str. Column name for outcome variable.')
+
+add_bool_arg(parser=parser, name='man_split', input_type='flag',
+             help='Manually split data into training and test sets', default=False)
+add_arg('-hs', '--holdout_samples', nargs='+', type=str, default=[],
+        help='str. Sample IDs selected as holdout test group when --man_split was set')
+add_arg('-mh', '--meta_file-holdout_samples', type=str, default=False,
+        help='str. Column name for test subjects ID')
 
 add_arg('-ct', '--cross_validation-type', type=str,
         choices=['kfold', 'LOO'], default='kfold', help='str. Cross validation type')
@@ -162,10 +174,6 @@ add_arg('-e', '--epoches', type=int, default=500,
         help='int. Number of epoches for LSTM modelling')
 add_arg('-b', '--batch_size', type=int, default=32,
         help='int. The batch size for LSTM modeling')
-add_bool_arg(parser=parser, name='man_split', input_type='flag',
-             help='Manually split data into training and test sets', default=False)
-add_arg('-hs', '--holdout_samples', nargs='+', type=str, default=[],
-        help='str. Sample IDs selected as holdout test group when --man_split was set')
 add_arg('--tp', '--training_percentage', type=float, default=0.8,
         help='num, range: 0~1. Split percentage for training set when --no-man_split is set')
 add_arg('-o', '--output_dir', type=str,
@@ -183,20 +191,21 @@ if len(sys.argv) == 1:  # display help if no argument is provided
     parser.print_help(sys.stderr)
     sys.exit(1)
 
-if args.man_split and (len(args.holdout_samples) == 0 or not args.meta_file_test_subjects):
+if args.man_split and (len(args.holdout_samples) == 0 or not args.meta_file_holdout_samples):
     parser.error(
-        'set -hs/--holdout_samples or -ms/--meta_file-test_subjects when -ms/--man_split is on')
+        'set -hs/--holdout_samples or -mh/--meta_file-holdout_samples when --man_split is on')
 if len(args.file) > 1:
     if not args.meta_file:
         parser.error(
             'Set -mf/--meta_file if more than one input file is provided')
-    elif not all([args.meta_file_file_name, args.meta_file_n_timepoints, args.meta_file_annotation, args.meta_file_sample_id]):
+    elif not all([args.meta_file_file_name, args.meta_file_n_timepoints, args.meta_file_annotation, args.meta_file_sample_id],
+                 args.meta_file_outcome):
         parser.error(
-            'Specify -mn/--meta_file-file_name, -mt/--meta_file-n_timepoints, -ma/--meta_file-annotation and -mi/--meta_file-sample_id when -mf/--meta_file is set')
+            'Specify -mn/--meta_file-file_name, -mt/--meta_file-n_timepoints, -ma/--meta_file-annotation, -mi/--meta_file-sample_id, and -mo/--meta_file-outcome_var when -mf/--meta_file is set')
 
-    if args.man_split and not args.meta_file_test_subjects:
+    if args.man_split and not args.meta_file_holdout_samples:
         parser.error(
-            'Set -ms/--meta_file-test_subjects if multiple input files are provided and -ms/--man_split is on')
+            'Set -mh/--meta_file-holdout_samples if multiple input files are provided and --man_split is on')
 else:
     if any([len(i) < 1 for i in [args.sample_id, args.annotation_variable, args.outcome_variable]]):
         parser.error(

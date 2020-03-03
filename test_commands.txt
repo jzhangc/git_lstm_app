@@ -9,6 +9,10 @@ $ test commands
 
 
 ./testrealm.py \
-./data/v4/lstm_aec_phases_freq1_v4.csv \
-./data/v4/lstm_aec_phases_freq2_v4.csv \
+--file_pattern './data/v4/*.csv' \
+--meta_file ./data/file_annot.csv \
+--meta_file-file_name 'file' --meta_file-n_timepoints 'n_timepoint' \
+--meta_file-holdout_samples 'test_subj' --meta_file-sample_id 'sample_id_var' \
+--meta_file-annotation 'annot_var' \
+--meta_file-outcome_var 'outcome' \
 --man_split
