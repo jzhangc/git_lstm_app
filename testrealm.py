@@ -180,6 +180,8 @@ class FileProcesser(threading.Thread):
         while True:
             try:
                 file = self.work_queue.get()
+            finally:
+                self.work_queue.task_done()
 
     def file_processing(self, file):
         filename = os.path.join(self.cwd, file)
@@ -216,20 +218,28 @@ class DataLoader(object):
             dict(zip(self._file_basename, self._test_subjects_list)), dict(
                 zip(self._file_basename, self._annotation_var_list)), dict(zip(self._file_basename, self._sample_id_var_list))
         else:
-            self._n_timepoints_list, self._test_subjects_list, self._anntation_var_list = None, None, None
+            self._n_timepoints_dict, self._test_subjects_dict, self._anntation_var_dict, self._sample_id_var_dict = None, None, None, None
 
+        # setup working director
         if args.working_dir:
             self.cwd = args.working_dir
         else:
             self.cwd = os.getcwd()
 
 
+# class MyLSTM(object):
+#     def __init__(self, model_type):
+#         self.model_type = model_type
+
+#     def modelling(self):
+#         if self.model_type == 'simple':
+#             print('LSTM modeling')
+#         elif self.model_type == 'stacked':
+#             print('stacked modelling')
+
+
 # ------ local variables ------
-# file_list = args.file
-# if len(file_list) > 1:
-#     n_timepoint_list, test_subj_list, outcome_list = None, None, None
-# else:
-#     n_timepoint_list, test_subj_list, outcome_list = None, None, None
+
 
 # ------ setup output folders ------
 
@@ -255,30 +265,3 @@ class DataLoader(object):
 
 # if __name__ == '__main__':
 #     pass
-df = glob.glob('./data/v4/*.csv')
-dat = pd.read_csv(os.path.join(
-    os.getcwd(), df), engine='python')
-
-os.path.basename(df)
-
-f = "./data/file_annot.csv"
-annot = pd.read_csv(os.path.join(
-    os.getcwd(), f), engine='python')
-
-annot.loc[annot['file'] == os.path.basename(df)]
-
-[i.split(",") for i in np.array(
-    self.meta_file[args.meta_file_test_subjects])]
-
-
-timpoints = [np.array(annot['n_timepoint'])]
-test_subjects = [i.split(',') for i in np.array(annot['test_subj'])]
-basename_list = [os.path.basename(n) for n in df]
-
-test_subj_dict = dict(zip(basename_list, test_subjects))
-
-
-tst_dict = {os.path.basename(
-    df): annot.loc[annot['file'] == os.path.basename(df)]}
-
-tst_dict[os.path.basename(df)]
