@@ -15,6 +15,7 @@ import os
 import glob
 import threading
 import argparse
+import queue
 from datetime import datetime
 import numpy as np
 import pandas as pd
@@ -121,8 +122,8 @@ parser = AppArgParser(description=DESCRIPITON,
 
 add_arg = parser.add_argument
 add_arg('file', nargs='*', default=[])
-add_arg('-sv', '--sample_variable', type=str, default=[],
-        help='str. Vairable name for samples. NOTE: only needed with single file processing')
+add_arg('-si', '--sample_id', type=str, default=[],
+        help='str. Vairable name for sample ID. NOTE: only needed with single file processing')
 add_arg('-av', '--annotation_variable', type=str, nargs="+", default=[],
         help='names of the annotation columns in the input data. NOTE: only needed with single file processing')
 add_arg("-nt", '--n_timepoints', type=int, default=2,
@@ -157,45 +158,28 @@ print(len(args.file))
 
 
 # ------ loacl classes ------
-class FileLoader(threading.Thread):
+class FileProcesser(threading.Thread):
     """
-    sub-classing a threading.Thread class to load data files.
+    sub-classing a threading.Thread class to process the data files
     """
 
-    def __init__(self):
+    def __init__(self, work_queue):
         # make the thread a daemon object
-        super(FileLoader, self).__init__(daemon=True)
+        super(FileProcesser, self).__init__(daemon=True)
 
-        # load file names strings
-        if args.file_pattern:
-            self.files = glob.glob(args.file_pattern)
-            if len(self.files) == 0:
-                error("No files matching the specified file pattern: {}".format(args.file_pattern),
-                      'Put all the files in the folder first.')
+        # set up working queue
+        self.work_queue = work_queue
+
+        # initial settings
+        if args.cross_validation_type == 'kfold':
+            self._cv_fold = args.cv_fold
         else:
-            self.files = args.file
-
-        # load meta data
-        if len(self.files) > 1:  # load meta data file
-            self.meta_file = pd.read_csv(args.meta_file)
-            self._n_timepoints_list, self._test_subjects_list, self._anntation_var_list = [
-                np.array(self.meta_file[args.meta_file_n_timepoints])], [i.split(",") for i in np.array(
-                    self.meta_file[args.meta_file_test_subjects])], [i.split(",") for i in np.array(
-                        self.meta_file[args.meta_file_annotation])]
-        else:
-            self._n_timepoints_list, self._test_subjects_list, self._anntation_var_list = None, None, None
-
-        if args.working_dir:
-            self.cwd = args.working_dir
-        else:
-            self.cwd = os.getcwd()
-
-        self.start()
+            self._cv_fold = self._n_samples
 
     def run(self):
         while True:
-            for file in self.files:
-                self.file_processing(file)
+            try:
+                file = self.work_queue.get()
 
     def file_processing(self, file):
         filename = os.path.join(self.cwd, file)
@@ -208,20 +192,37 @@ class FileLoader(threading.Thread):
                 (dat.shape[1] - self._n_annot_col) // self._n_timepoints)
 
 
-# class InputData(object):
-#     def __init__(self, file):
-#         self.input = pd.read_csv(file)
-#         self.__n_samples = self.input.shape[0]  # pd.shape[0]: nrow
-#         self.__n_annot_col = len(args.annotation_variable)
+class DataLoader(object):
+    def __init__(self, file):
+        # load file names strings
+        if args.file_pattern:
+            self.files = glob.glob(args.file_pattern)
+            if len(self.files) == 0:
+                error("No files matching the specified file pattern: {}".format(args.file_pattern),
+                      'Put all the files in the folder first.')
+        else:
+            self.files = args.file
 
-#         self.__n_timepoints__ = args.n_timepoints
-#         self.n_features = int((
-#             self.input.shape[1] - self._n_annot_col) // self._n_timepoints)  # pd.shape[1]: ncol
+        # load meta data
+        if len(self.files) > 1:  # load meta data file
+            self.meta_file = pd.read_csv(args.meta_file)
+            self._file_basename = [os.path.basename(n) for n in df]
+            self._n_timepoints_list, self._test_subjects_list, self._anntation_var_list, self._sample_id_var_list = [
+                np.array(self.meta_file[args.meta_file_n_timepoints])], [i.split(",") for i in np.array(
+                    self.meta_file[args.meta_file_test_subjects])], [i.split(",") for i in np.array(
+                        self.meta_file[args.meta_file_annotation])], [np.array(self.meta_file[args.meta_file_sample_id])]
+            self._timepoints_dict, self._test_subj_dict, self._annot_var_dict, self._sample_id_var_dict = dict(
+                zip(self._file_basename, self._n_timepoints_list)),
+            dict(zip(self._file_basename, self._test_subjects_list)), dict(
+                zip(self._file_basename, self._annotation_var_list)), dict(zip(self._file_basename, self._sample_id_var_list))
+        else:
+            self._n_timepoints_list, self._test_subjects_list, self._anntation_var_list = None, None, None
 
-#         if args.cross_validation_type == 'kfold':
-#             self._cv_fold = args.cv_fold
-#         else:
-#             self._cv_fold = self._n_samples
+        if args.working_dir:
+            self.cwd = args.working_dir
+        else:
+            self.cwd = os.getcwd()
+
 
 # ------ local variables ------
 # file_list = args.file
@@ -254,8 +255,7 @@ class FileLoader(threading.Thread):
 
 # if __name__ == '__main__':
 #     pass
-
-df = glob.glob('./data/v4/*.csv')[0]
+df = glob.glob('./data/v4/*.csv')
 dat = pd.read_csv(os.path.join(
     os.getcwd(), df), engine='python')
 
@@ -266,3 +266,19 @@ annot = pd.read_csv(os.path.join(
     os.getcwd(), f), engine='python')
 
 annot.loc[annot['file'] == os.path.basename(df)]
+
+[i.split(",") for i in np.array(
+    self.meta_file[args.meta_file_test_subjects])]
+
+
+timpoints = [np.array(annot['n_timepoint'])]
+test_subjects = [i.split(',') for i in np.array(annot['test_subj'])]
+basename_list = [os.path.basename(n) for n in df]
+
+test_subj_dict = dict(zip(basename_list, test_subjects))
+
+
+tst_dict = {os.path.basename(
+    df): annot.loc[annot['file'] == os.path.basename(df)]}
+
+tst_dict[os.path.basename(df)]

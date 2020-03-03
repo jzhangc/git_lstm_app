@@ -125,8 +125,8 @@ parser = AppArgParser(description=DESCRIPITON,
 # below: postional and optional optionals
 add_arg = parser.add_argument
 add_arg('file', nargs='*', default=[])
-add_arg('-sv', '--sample_variable', type=str, default=[],
-        help='str. Vairable name for samples. NOTE: only needed with single file processing')
+add_arg('-si', '--sample_id', type=str, default=[],
+        help='str. Vairable name for sample ID. NOTE: only needed with single file processing')
 add_arg('-av', '--annotation_variables', type=str, nargs="+", default=[],
         help='names of the annotation columns in the input data. NOTE: only needed with single file processing')
 add_arg("-nt", '--n_timepoints', type=int, default=2,
@@ -198,9 +198,9 @@ if len(args.file) > 1:
         parser.error(
             'Set -ms/--meta_file-test_subjects if multiple input files are provided and -ms/--man_split is on')
 else:
-    if any([len(i) < 1 for i in [args.sample_variable, args.annotation_variable, args.outcome_variable]]):
+    if any([len(i) < 1 for i in [args.sample_id, args.annotation_variable, args.outcome_variable]]):
         parser.error(
-            "Set -sv/--sample_variable, -av/--annotation_variable, -ov/--outcome_variable when single input file is set")
+            "Set -si/--sample_id, -av/--annotation_variable, -ov/--outcome_variable when single input file is set")
 
 if not args.file_pattern and len(args.outcome_variable) != 1:
     # NOTE: check outcome variables in the file loader
