@@ -195,28 +195,29 @@ class FileProcesser(threading.Thread):
     sub-classing a threading.Thread class to process the data files
     """
 
-    def __init__(self, work_queue):
+    def __init__(self, work_queue, work_dir='.', meta_info):
         # make the thread a daemon object
         super(FileProcesser, self).__init__(daemon=True)
 
         # set up working queue
         self.work_queue = work_queue
 
-        # initial settings
-        if args.cross_validation_type == 'kfold':
-            self._cv_fold = args.cv_fold
-        else:
-            self._cv_fold = self._n_samples
+        # meta information
+        if (len())
+
+        # working directory
+        self.cwd = work_dir
 
     def run(self):
         while True:
             try:
                 file = self.work_queue.get()
-                file_processing(file)
+                self.file_processing(file)
             finally:
                 self.work_queue.task_done()
 
     def file_processing(self, file):
+        # load file
         filename = os.path.join(self.cwd, file)
         file_basename = os.path.basename(file)
 
@@ -227,6 +228,12 @@ class FileProcesser(threading.Thread):
                 (dat.shape[1] - self._n_annot_col) // self._n_timepoints)
         except Exception as e:
             warn('Could not load the file {}'.format(file_basename))
+
+        # initial settings
+        if args.cross_validation_type == 'kfold':
+            self._cv_fold = args.cv_fold
+        else:
+            self._cv_fold = self._n_samples
 
 
 class DataLoader(object):
@@ -246,9 +253,6 @@ class DataLoader(object):
                       'Put all the files in the folder first.')
         else:
             self.files = args.file
-
-        # setup a working queue
-        self.working_queue = queue.Queue()
 
         # load meta data
         if len(self.files) > 1:  # load meta data file
