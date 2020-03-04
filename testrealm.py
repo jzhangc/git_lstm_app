@@ -190,43 +190,43 @@ print(len(args.file))
 
 
 # ------ loacl classes ------
-# class FileProcesser(threading.Thread):
-#     """
-#     sub-classing a threading.Thread class to process the data files
-#     """
+class FileProcesser(threading.Thread):
+    """
+    sub-classing a threading.Thread class to process the data files
+    """
 
-#     def __init__(self, work_queue):
-#         # make the thread a daemon object
-#         super(FileProcesser, self).__init__(daemon=True)
+    def __init__(self, work_queue):
+        # make the thread a daemon object
+        super(FileProcesser, self).__init__(daemon=True)
 
-#         # set up working queue
-#         self.work_queue = work_queue
+        # set up working queue
+        self.work_queue = work_queue
 
-#         # initial settings
-#         if args.cross_validation_type == 'kfold':
-#             self._cv_fold = args.cv_fold
-#         else:
-#             self._cv_fold = self._n_samples
+        # initial settings
+        if args.cross_validation_type == 'kfold':
+            self._cv_fold = args.cv_fold
+        else:
+            self._cv_fold = self._n_samples
 
-#     def run(self):
-#         while True:
-#             try:
-#                 file = self.work_queue.get()
-#                 file_processing(file)
-#             finally:
-#                 self.work_queue.task_done()
+    def run(self):
+        while True:
+            try:
+                file = self.work_queue.get()
+                file_processing(file)
+            finally:
+                self.work_queue.task_done()
 
-#     def file_processing(self, file):
-#         filename = os.path.join(self.cwd, file)
-#         file_basename = os.path.basename(file)
+    def file_processing(self, file):
+        filename = os.path.join(self.cwd, file)
+        file_basename = os.path.basename(file)
 
-#         try:
-#             dat = pd.read_csv(filename, engine='python')
-#             # pd.shape[1]: ncol
-#             n_feature = int(
-#                 (dat.shape[1] - self._n_annot_col) // self._n_timepoints)
-#         except Exception as e:
-#             warn('Could not load the file {}'.format(file_basename))
+        try:
+            dat = pd.read_csv(filename, engine='python')
+            # pd.shape[1]: ncol
+            n_feature = int(
+                (dat.shape[1] - self._n_annot_col) // self._n_timepoints)
+        except Exception as e:
+            warn('Could not load the file {}'.format(file_basename))
 
 
 class DataLoader(object):
@@ -314,5 +314,5 @@ class DataLoader(object):
 # -- model evaluation and plotting --
 
 # ------ process/__main__ statement ------
-if __name__ == '__main__':
-    mydata = DataLoader()
+# if __name__ == '__main__':
+#     mydata = DataLoader()
