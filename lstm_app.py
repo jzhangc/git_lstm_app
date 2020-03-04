@@ -225,21 +225,54 @@ if not args.file_pattern and len(args.outcome_variable) != 1:
 
 
 # ------local classes ------
-# class InputData(object):
-#     def __init__(self, file):
-#         self.input = pd.read_csv(file)
-#         self.__n_samples__ = self.input.shape[0]  # pd.shape[0]: nrow
-#         self.__n_annot_col__ = len(args.annotation_variables)
+class DataLoader(object):
+    """
+    Data loading module
 
-#         self.__n_timepoints__ = args.n_timepoints
-#         self.n_features = int((
-#             self.input.shape[1] - self.__n_annot_col__) // self.__n_timepoints__)  # pd.shape[1]: ncol
+    To do:
+        [ ] add length check for outcome variable values
+    """
 
-#         if args.cross_validation_type == 'kfold':
-#             self.__cv_fold__ = args.cv_fold
-#         else:
-#             self.__cv_fold__ = self.__n_samples__
+    def __init__(self):
+        # load file names strings
+        if args.file_pattern:
+            self.files = glob.glob(args.file_pattern)
+            if len(self.files) == 0:
+                error("No files matching the specified file pattern: {}".format(args.file_pattern),
+                      'Put all the files in the folder first.')
+        else:
+            self.files = args.file
 
+        # setup a working queue
+        self.working_queue = queue.Queue()
+
+        # load meta data
+        if len(self.files) > 1:  # load meta data file
+            self.meta_file = pd.read_csv(args.meta_file)
+            self._fn = [i.split(',') for i in np.array(
+                self.meta_file[args.meta_file_file_name])]
+            self._fn = flatten(self._fn)
+            self._n_timepoints_list, self._holdout_samples_list, self._annotation_var_list, self._sample_id_var_list, self._outcome_var_list = flatten([
+                np.array(self.meta_file[args.meta_file_n_timepoints])]), [i.split(',') for i in np.array(
+                    self.meta_file[args.meta_file_holdout_samples])], [i.split(',') for i in np.array(
+                        self.meta_file[args.meta_file_annotation])], [np.array(self.meta_file[args.meta_file_sample_id])], [i.split(',') for i in np.array(
+                            self.meta_file[args.meta_file_outcome_var])]
+            self._n_timepoints_dict, self._holdout_dict, self._annot_var_dict, self._sample_id_var_dict, self._outcome_var_dict = dict(
+                zip(self._fn, self._n_timepoints_list)), dict(zip(self._fn, self._holdout_samples_list)), dict(
+                zip(self._fn, self._annotation_var_list)), dict(zip(self._fn, self._sample_id_var_list)), dict(
+                zip(self._fn, self._outcome_var_list))
+
+            self._n_timepoints, self._holdout, self._annot_var, self._sample_id_var, self._outcome_var = None, None, None, None, None
+        else:
+            self._n_timepoints_dict, self._holdout_samples_dict, self._anntation_var_dict, self._sample_id_var_dict, self._outcome_var_dict = None, None, None, None, None
+            self._n_timepoints, self._holdout, self._annot_var = args.n_timepoints, args.holdout_samples, args.annotation_variables
+            self._sample_id_var, self._outcome_var = args.sample_id, args.outcome_variable
+
+        # setup working director
+        if args.working_dir:
+            self.cwd = args.working_dir
+        else:
+            self.cwd = os.getcwd()
 
 # ------ setup output folders ------ n
 # try:
