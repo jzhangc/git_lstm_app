@@ -195,15 +195,12 @@ class FileProcesser(threading.Thread):
     sub-classing a threading.Thread class to process the data files
     """
 
-    def __init__(self, work_queue, work_dir='.', meta_info):
+    def __init__(self, work_queue, work_dir='.'):
         # make the thread a daemon object
         super(FileProcesser, self).__init__(daemon=True)
 
         # set up working queue
         self.work_queue = work_queue
-
-        # meta information
-        if (len())
 
         # working directory
         self.cwd = work_dir
