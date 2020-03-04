@@ -193,6 +193,10 @@ print(len(args.file))
 class FileProcesser(threading.Thread):
     """
     sub-classing a threading.Thread class to process the data files
+
+        To do:
+                [ ] move the "logical checks" no files out of the class
+                [ ] make the file processer class sole for processing a single file
     """
 
     def __init__(self, work_queue, work_dir='.'):
@@ -298,6 +302,8 @@ class DataLoader(object):
 
 # ------ training pipeline ------
 # -- read data --
+mydata = DataLoader()
+
 # print('mydata.cwd: {}'.format(mydata.cwd))
 # print('self._n_timepoints: {}, self._holdout:{}, self._annot_var:{}, self._sample_id_var:{}'.format(
 #     mydata._n_timepoints, mydata._holdout, mydata._annot_var, mydata._sample_id_var))
@@ -309,6 +315,7 @@ class DataLoader(object):
 # print('self._outcome_var_dict'.format(mydata._outcome_var_dict))
 
 # -- file processing --
+
 
 # -- training and export --
 
