@@ -9,6 +9,7 @@ Python3 commandline application for LSTM analysis
 import os
 import sys
 import glob  # Unix file pattern processing
+import queue
 import argparse
 # import numpy as np
 import pandas as pd
@@ -66,6 +67,9 @@ class AppArgParser(argparse.ArgumentParser):
 
 
 # ------ custom functions ------
+def flatten(x): return [item for sublist in x for item in sublist]
+
+
 def error(message, *lines):
     """
     stole from: https://github.com/alexjc/neural-enhance

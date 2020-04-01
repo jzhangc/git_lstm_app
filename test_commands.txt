@@ -7,7 +7,6 @@ $ test commands
 ./data/new_lstm_aec_phase1_base_freq2.csv \
 -nt=2 -ct='kfold' -av subject, PCL, group
 
-
 ./testrealm.py \
 --file_pattern './data/v4/*.csv' \
 --meta_file ./data/file_annot.csv \
