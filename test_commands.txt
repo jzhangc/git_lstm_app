@@ -8,10 +8,4 @@ $ test commands
 -nt=2 -ct='kfold' -av subject, PCL, group
 
 ./testrealm.py \
---file_pattern './data/v4/*.csv' \
---meta_file ./data/file_annot.csv \
---meta_file-file_name 'file' --meta_file-n_timepoints 'n_timepoint' \
---meta_file-holdout_samples 'test_subj' --meta_file-sample_id 'sample_id_var' \
---meta_file-annotation 'annot_var' \
---meta_file-outcome_var 'outcome' \
---man_split
+./data/v4/lstm_aec_phases_freq1_v4.csv

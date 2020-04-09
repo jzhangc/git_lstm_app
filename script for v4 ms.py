@@ -1,7 +1,7 @@
 """
 NEW! phase1 based single timepoint to phase1-phase2 lstm analysis
 """
-# from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 import math
 import os

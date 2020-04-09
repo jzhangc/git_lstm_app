@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Current objective:
 Python3 commandline application for LSTM analysis
@@ -53,7 +52,6 @@ class colr:
 class AppArgParser(argparse.ArgumentParser):
     """
     This is a sub class to argparse.ArgumentParser.
-
     Purpose
             The help page will display when (1) no argumment was provided, or (2) there is an error
     """
@@ -93,7 +91,6 @@ def add_bool_arg(parser, name, help, input_type, default=False):
     Purpose\n
             autmatically add a pair of mutually exclusive boolean arguments to the
             argparser
-
     Arguments\n
             parser: a parser object
             name: str. the argument name
@@ -232,7 +229,6 @@ if not args.file_pattern and len(args.outcome_variable) != 1:
 class DataLoader(object):
     """
     Data loading module
-
     To do:
         [ ] add length check for outcome variable values
     """

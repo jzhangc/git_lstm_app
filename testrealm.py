@@ -12,13 +12,16 @@ Current objectives:
 # import math
 import sys
 import os
-import glob
+# import glob
 import threading
 import argparse
 # import queue
 from datetime import datetime
 import numpy as np
 import pandas as pd
+from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
+                                           lstm_cv_train, lstm_ensemble_eval,
+                                           lstm_ensemble_predict)
 # from tensorflow.keras.callbacks import History  # for input argument type check
 # from matplotlib import pyplot as plt
 # from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
@@ -29,38 +32,9 @@ import pandas as pd
 
 # from custom_functions.custom_exceptions import (NpArrayShapeError,
 #                                                 PdDataFrameTypeError)
-# from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
-#                                            lstm_cv_train, lstm_ensemble_eval,
-#                                            lstm_ensemble_predict)
 # from custom_functions.data_processing import training_test_spliter_final
 # from custom_functions.plot_functions import y_yhat_plot
 # from custom_functions.util_functions import logging_func
-
-
-# ------ custom functions ------
-# below: a lambda funciton to flatten the nested list  into list
-def flatten(x): return [item for sublist in x for item in sublist]
-
-
-def add_bool_arg(parser, name, help, input_type, default=False):
-    """
-    Purpose\n
-            autmatically add a pair of mutually exclusive boolean arguments to the
-            argparser
-
-    Arguments\n
-            parser: a parser object
-            name: str. the argument name
-            help: str. the help message
-            input_type: str. the value type for the argument
-            default: the default value of the argument if not set
-    """
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--' + name, dest=name,
-                       action='store_true', help=input_type + '. ' + help)
-    group.add_argument('--no-' + name, dest=name,
-                       action='store_false', help=input_type + '. ''(Not to) ' + help)
-    parser.set_defaults(**{name: default})
 
 
 # ------ system classes ------
@@ -83,7 +57,7 @@ class AppArgParser(argparse.ArgumentParser):
     This is a sub class to argparse.ArgumentParser.
 
     Purpose
-            The help page will display when (1) no argumment was provided, or (2) there is an error
+                    The help page will display when (1) no argumment was provided, or (2) there is an error
     """
 
     def error(self, message, *lines):
@@ -94,17 +68,48 @@ class AppArgParser(argparse.ArgumentParser):
         sys.exit(2)
 
 
-# ------- custom functions ------
+# ------ custom functions ------
+# below: a lambda funciton to flatten the nested list into a single list
+def flatten(x): return [item for sublist in x for item in sublist]
+
+
 def error(message, *lines):
+    """
+    stole from: https://github.com/alexjc/neural-enhance
+    """
     string = "\n{}ERROR: " + message + "{}\n" + \
         "\n".join(lines) + ("{}\n" if lines else "{}")
     print(string.format(colr.RED_B, colr.RED, colr.ENDC))
-    sys.exit(-1)
+    sys.exit(2)
 
 
 def warn(message, *lines):
+    """
+    stole from: https://github.com/alexjc/neural-enhance
+    """
     string = "\n{}WARNING: " + message + "{}\n" + "\n".join(lines) + "{}\n"
     print(string.format(colr.YELLOW_B, colr.YELLOW, colr.ENDC))
+
+
+def add_bool_arg(parser, name, help, input_type, default=False):
+    """
+    Purpose\n
+                    autmatically add a pair of mutually exclusive boolean arguments to the
+                    argparser
+
+    Arguments\n
+                    parser: a parser object
+                    name: str. the argument name
+                    help: str. the help message
+                    input_type: str. the value type for the argument
+                    default: the default value of the argument if not set
+    """
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('--' + name, dest=name,
+                       action='store_true', help=input_type + '. ' + help)
+    group.add_argument('--no-' + name, dest=name,
+                       action='store_false', help=input_type + '. ''(Not to) ' + help)
+    parser.set_defaults(**{name: default})
 
 
 # ------ GLOBAL variables -------
@@ -125,7 +130,8 @@ parser = AppArgParser(description=DESCRIPITON,
                       formatter_class=argparse.RawDescriptionHelpFormatter)
 
 add_arg = parser.add_argument
-add_arg('file', nargs='*', default=[])
+add_arg('file', nargs=1, default=[],
+        help='Input CSV file. Currently only one file is accepable.')
 add_arg('-w', "--working_dir", type=str, default=False,
         help='str. Working directory if not the current one')
 
@@ -152,7 +158,9 @@ add_arg('-f', '--cv_fold', type=int, default=10,
 add_bool_arg(parser=parser, name='cv_only', input_type='flag',
              help='Explort a scatter plot', default=False)
 
-add_arg('-m', '--model_type', type=str, choices=['simple', 'stacked', 'bidirectional'],
+add_arg('-m', '--model_type', type=str, choices=['regression', 'classification'],
+        default='classifciation', help='str. Model type. Options: \'regression\' and \'classification\'')
+add_arg('-l', '--lstm_type', type=str, choices=['simple', 'stacked', 'bidirectional'],
         default='simple',
         help='str. LSTM model type. Options: \'simple\', \'stacked\', and \'bidirectional\'')
 add_arg('-u', '--hidden_unit', type=int, default=50,
@@ -173,26 +181,29 @@ args = parser.parse_args()
 print(args)
 print('\n')
 print(len(args.file))
+print(args.file[0])
+
+print(os.path.exists(args.file[0]))
 
 
 # ------ loacl classes ------
-class FileProcesser(threading.Thread):
-    """
-        To do:
-        [ ] process individual files from the DataLoader class
-        [ ] see if multi-threading or multi-processing is needed to use i
-    """
+# class FileProcesser(threading.Thread):
+#     """
+#         To do:
+#         [ ] process individual files from the DataLoader class
+#         [ ] see if multi-threading or multi-processing is needed to use i
+#     """
 
-    def __init__(self, work_queue, work_dir='.'):
-        # make the thread a daemon object
-        super(FileProcesser, self).__init__(daemon=True)
-        # working directory
-        self.cwd = work_dir
+#     def __init__(self, work_queue, work_dir='.'):
+#         # make the thread a daemon object
+#         super(FileProcesser, self).__init__(daemon=True)
+#         # working directory
+#         self.cwd = work_dir
 
 
 class DataLoader(object):
     """
-    Data loading module
+    Data loading class
 
     To do:
         [ ] add length check for outcome variable values
@@ -201,7 +212,15 @@ class DataLoader(object):
 
     def __init__(self):
         # load file names strings
-        self.file = args.file
+        self.file = args.file[0]
+        if not os.path.exists(self.file):
+            error('The input file or directory does not exist.',
+                  'Please check.')
+        else:
+            self.raw = pd.read_csv(self.file, engine='python')
+
+            self.annot_vars = args.annotation_variables
+            self.n_timepoint =
 
         # setup working director
         if args.working_dir:
@@ -209,30 +228,55 @@ class DataLoader(object):
         else:
             self.cwd = os.getcwd()
 
-    def data_split(self, percentage):
-        self.x = None
-        self.y = None
+    def data_split(self, percentage, random_state):
+        if args.cv_only:
+            self.test_x, self.test_y = None, None
+
+            self.training_x = None
+            self.training_y = None
+        else:
+            if args.man_split:
+                self.training_x = None
+                self.training_y = None
+
+    def processing(self):
+        if args.cv_only:
+            self.training_x = None
+        else:
+            self.training_x = None
 
 
-# class MyLSTM(object):
-#     def __init__(self, model_type):
-#         self.model_type = model_type
+class model_LSTM(object):
+    """
+    Modelling
+    """
 
-#     def modelling(self):
-#         if self.model_type == 'simple':
-#             print('LSTM modeling')
-#         elif self.model_type == 'stacked':
-#             print('stacked modelling')
+    def __init__(self):
+        self.lstm = None
+        self.hidden_unit = args.hidden_unit
+        self.epoches = args.epoches
+        self.model_type = args.model_type
+        self.data = DataLoader()
+        self.n_timepoint = self.data.n_timepoint
+
+    def simple_model(self):
+        None
+
+    def stacked_model(self):
+        None
+
+    def bidirectional_model(self):
+        None
 
 
 # ------ local variables ------
 
-
 # ------ setup output folders ------
-
 # ------ training pipeline ------
 # -- read data --
 mydata = DataLoader()
+print(mydata.raw)
+
 
 # print('mydata.cwd: {}'.format(mydata.cwd))
 # print('self._n_timepoints: {}, self._holdout:{}, self._annot_var:{}, self._sample_id_var:{}'.format(
