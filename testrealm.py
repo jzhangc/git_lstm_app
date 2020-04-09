@@ -220,7 +220,7 @@ class DataLoader(object):
             self.raw = pd.read_csv(self.file, engine='python')
 
             self.annot_vars = args.annotation_variables
-            self.n_timepoint =
+            self.n_timepoint
 
         # setup working director
         if args.working_dir:
