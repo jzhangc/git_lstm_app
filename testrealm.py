@@ -22,6 +22,7 @@ import pandas as pd
 from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
                                            lstm_cv_train, lstm_ensemble_eval,
                                            lstm_ensemble_predict)
+from custom_functions.data_processing import training_test_spliter_final
 # from tensorflow.keras.callbacks import History  # for input argument type check
 # from matplotlib import pyplot as plt
 # from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
@@ -135,17 +136,17 @@ add_arg('file', nargs=1, default=[],
 add_arg('-w', "--working_dir", type=str, default=False,
         help='str. Working directory if not the current one')
 
-add_arg('-s', '--sample_id', type=str, default=[],
+add_arg('-s', '--sample_id', type=str, default=False,
         help='str. Vairable name for sample ID. NOTE: only needed with single file processing')
 add_arg('-a', '--annotation_variables', type=str, nargs="+", default=[],
         help='names of the annotation columns in the input data. NOTE: only needed with single file processing')
-add_arg("-n", '--n_timepoints', type=int, default=2,
+add_arg("-n", '--n_timepoints', type=int, default=False,
         help='int. Number of timepoints. NOTE: only needed with single file processing')
-add_arg('-y', '--outcome_variable', type=str, default=[],
+add_arg('-y', '--outcome_variable', type=str, default=False,
         help='str. Vairable name for outcome. NOTE: only needed with single file processing')
 
 add_bool_arg(parser=parser, name='man_split', input_type='flag',
-             help='Manually split data into training and test sets', default=False)
+             help='Manually split data into training and test sets. When set, the split is on -s/--sample_id.', default=False)
 add_arg('-t', '--holdout_samples', nargs='+', type=str, default=[],
         help='str. Sample IDs selected as holdout test group when --man_split was set')
 add_arg('-p', '--training_percentage', type=float, default=0.8,
@@ -178,13 +179,6 @@ add_arg('-j', '--plot-type', type=str,
         choices=['scatter', 'bar'], default='scatter', help='str. Plot type')
 
 args = parser.parse_args()
-print(args)
-print('\n')
-print(len(args.file))
-print(args.file[0])
-
-print(os.path.exists(args.file[0]))
-
 
 # ------ loacl classes ------
 # class FileProcesser(threading.Thread):
@@ -211,22 +205,45 @@ class DataLoader(object):
     """
 
     def __init__(self):
-        # load file names strings
-        self.file = args.file[0]
-        if not os.path.exists(self.file):
+        # setup working director
+        if args.working_dir:
+            self.cwd = args.working_dir
+        else:
+            self.cwd = os.getcwd()
+
+        # random state
+        self._rand = args.random_state
+
+        # check and load files
+        if not args.sample_id:
+            error('-s/--sample_id flag is mandatory.')
+        if not args.n_timepoints:
+            error('-n/--n_timepoints flag is mandatory.')
+        if not args.outcome_variable:
+            error('-y/--outcome_variable flag is mandatory.')
+        if len(args.annotation_variables) < 1:
+            error('-a/--annotation_variables flag is mandatory.')
+
+        # args.file is a list. so use [0] to grab the string
+        self.file = os.path.join(self.cwd, args.file[0])
+        self._basename = os.path.basename(args.file[0])
+        self.filename,  self._name_ext = os.path.splitext(self._basename)[
+            0], os.path.splitext(self._basename)[1]
+
+        if self._name_ext != ".csv":
+            error('The input file should be in csv format.',
+                  'Please check.')
+        elif not os.path.exists(self.file):
             error('The input file or directory does not exist.',
                   'Please check.')
         else:
             self.raw = pd.read_csv(self.file, engine='python')
 
             self.annot_vars = args.annotation_variables
-            self.n_timepoint
-
-        # setup working director
-        if args.working_dir:
-            self.cwd = args.working_dir
-        else:
-            self.cwd = os.getcwd()
+            self._n_annot_col = len(self.annot_vars)
+            self.n_timepoints = args.n_timepoints
+            self.n_features = int(
+                (self.raw.shape[1] - self._n_annot_col) // self.n_timepoints)  # pd.shape[1]: ncol
 
     def data_split(self, percentage, random_state):
         if args.cv_only:
@@ -236,8 +253,10 @@ class DataLoader(object):
             self.training_y = None
         else:
             if args.man_split:
-                self.training_x = None
-                self.training_y = None
+                self.training, self.test, _, _ = training_test_spliter_final(data=self.raw, random_state=self._rand,
+                                                                             man_split=args.man_split, man_split_colname=args.sample_id)
+            else:
+                self.training, self.test = None, None
 
     def processing(self):
         if args.cv_only:
@@ -246,27 +265,27 @@ class DataLoader(object):
             self.training_x = None
 
 
-class model_LSTM(object):
-    """
-    Modelling
-    """
+# class model_LSTM(object):
+#     """
+#     Modelling
+#     """
 
-    def __init__(self):
-        self.lstm = None
-        self.hidden_unit = args.hidden_unit
-        self.epoches = args.epoches
-        self.model_type = args.model_type
-        self.data = DataLoader()
-        self.n_timepoint = self.data.n_timepoint
+#     def __init__(self):
+#         self.lstm = None
+#         self.hidden_unit = args.hidden_unit
+#         self.epoches = args.epoches
+#         self.model_type = args.model_type
+#         self.data = DataLoader()
+#         self.n_timepoint = self.data.n_timepoint
 
-    def simple_model(self):
-        None
+#     def simple_model(self):
+#         None
 
-    def stacked_model(self):
-        None
+#     def stacked_model(self):
+#         None
 
-    def bidirectional_model(self):
-        None
+#     def bidirectional_model(self):
+#         None
 
 
 # ------ local variables ------
@@ -274,8 +293,24 @@ class model_LSTM(object):
 # ------ setup output folders ------
 # ------ training pipeline ------
 # -- read data --
+print(args)
+print('\n')
+print(len(args.file))
+print(args.file[0])
+
+print(os.path.exists(args.file[0]))
+
 mydata = DataLoader()
 print(mydata.raw)
+print("\n")
+print("input file path: {}".format(mydata.file))
+print("\n")
+print("input file name: {}. input file extension: {}".format(
+    mydata.filename,  mydata.name_ext))
+print("\n")
+print("number of timepoints in the input file: {}".format(mydata.n_timepoints))
+print("\n")
+print("number of features in the inpout file: {}".format(mydata.n_features))
 
 
 # print('mydata.cwd: {}'.format(mydata.cwd))
