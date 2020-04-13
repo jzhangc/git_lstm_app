@@ -125,6 +125,7 @@ Currently, the program only accepts same feature size per timepoint.
 
 
 # ------ augment definition ------
+# set the arguments
 parser = AppArgParser(description=DESCRIPITON,
                       epilog='Written by: {}. Current version: {}\n\r'.format(
                           AUTHOR, __version__),
@@ -179,22 +180,20 @@ add_arg('-j', '--plot-type', type=str,
         choices=['scatter', 'bar'], default='scatter', help='str. Plot type')
 
 args = parser.parse_args()
+# check the arguments. did not use parser.error as error() has fancy colours
+if not args.sample_id:
+    error('-s/--sample_id flag is mandatory.')
+if not args.n_timepoints:
+    error('-n/--n_timepoints flag is mandatory.')
+if not args.outcome_variable:
+    error('-y/--outcome_variable flag is mandatory.')
+if len(args.annotation_variables) < 1:
+    error('-a/--annotation_variables flag is mandatory.')
+if args.man_split and len(args.holdout_samples) < 1:
+    error('Set -t/--holdout_samples when --man_split was set.')
+
 
 # ------ loacl classes ------
-# class FileProcesser(threading.Thread):
-#     """
-#         To do:
-#         [ ] process individual files from the DataLoader class
-#         [ ] see if multi-threading or multi-processing is needed to use i
-#     """
-
-#     def __init__(self, work_queue, work_dir='.'):
-#         # make the thread a daemon object
-#         super(FileProcesser, self).__init__(daemon=True)
-#         # working directory
-#         self.cwd = work_dir
-
-
 class DataLoader(object):
     """
     Data loading class
@@ -214,15 +213,9 @@ class DataLoader(object):
         # random state
         self._rand = args.random_state
 
-        # check and load files
-        if not args.sample_id:
-            error('-s/--sample_id flag is mandatory.')
-        if not args.n_timepoints:
-            error('-n/--n_timepoints flag is mandatory.')
-        if not args.outcome_variable:
-            error('-y/--outcome_variable flag is mandatory.')
-        if len(args.annotation_variables) < 1:
-            error('-a/--annotation_variables flag is mandatory.')
+        # load files
+        # convert to a list for training_test_spliter_final() to use
+        self.y_var = [args.outcome_variable]
 
         # args.file is a list. so use [0] to grab the string
         self.file = os.path.join(self.cwd, args.file[0])
@@ -253,10 +246,16 @@ class DataLoader(object):
             self.training_y = None
         else:
             if args.man_split:
+                # check manual split values
+                # [[[[TBC]]]]
+
+                # manual data split
                 self.training, self.test, _, _ = training_test_spliter_final(data=self.raw, random_state=self._rand,
-                                                                             man_split=args.man_split, man_split_colname=args.sample_id)
+                                                                             man_split=args.man_split, man_split_colname=args.sample_id,
+                                                                             man_split_testset_value=args.holdout_samples)
             else:
-                self.training, self.test = None, None
+                self.training, self.test, _, _ = training_test_spliter_final(
+                    data=self.raw, random_state=self._rand, man_split=args.man_split)
 
     def processing(self):
         if args.cv_only:
