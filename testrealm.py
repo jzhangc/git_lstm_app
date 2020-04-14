@@ -134,16 +134,16 @@ parser = AppArgParser(description=DESCRIPITON,
 add_arg = parser.add_argument
 add_arg('file', nargs=1, default=[],
         help='Input CSV file. Currently only one file is accepable.')
-add_arg('-w', "--working_dir", type=str, default=False,
+add_arg('-w', "--working_dir", type=str, default=None,
         help='str. Working directory if not the current one')
 
-add_arg('-s', '--sample_id', type=str, default=False,
+add_arg('-s', '--sample_id', type=str, default=None,
         help='str. Vairable name for sample ID. NOTE: only needed with single file processing')
 add_arg('-a', '--annotation_variables', type=str, nargs="+", default=[],
         help='names of the annotation columns in the input data. NOTE: only needed with single file processing')
-add_arg("-n", '--n_timepoints', type=int, default=False,
+add_arg("-n", '--n_timepoints', type=int, default=None,
         help='int. Number of timepoints. NOTE: only needed with single file processing')
-add_arg('-y', '--outcome_variable', type=str, default=False,
+add_arg('-y', '--outcome_variable', type=str, default=None,
         help='str. Vairable name for outcome. NOTE: only needed with single file processing')
 
 add_bool_arg(parser=parser, name='man_split', input_type='flag',
@@ -182,13 +182,18 @@ add_arg('-j', '--plot-type', type=str,
 args = parser.parse_args()
 # check the arguments. did not use parser.error as error() has fancy colours
 if not args.sample_id:
-    error('-s/--sample_id flag is mandatory.')
+    error('-s/--sample_id missing.',
+          'Be sure to set the following: -s/--sample_id, -n/--n_timepoints, -y/--outcome_variable, -a/--annotation_variables')
 if not args.n_timepoints:
-    error('-n/--n_timepoints flag is mandatory.')
+    error('-n/--n_timepoints flag missing.',
+          'Be sure to set the following: -s/--sample_id, -n/--n_timepoints, -y/--outcome_variable, -a/--annotation_variables')
 if not args.outcome_variable:
-    error('-y/--outcome_variable flag is mandatory.')
+    error('-y/--outcome_variable flag missing.',
+          'Be sure to set the following: -s/--sample_id, -n/--n_timepoints, -y/--outcome_variable, -a/--annotation_variables')
 if len(args.annotation_variables) < 1:
-    error('-a/--annotation_variables flag is mandatory.')
+    error('-a/--annotation_variables missing.',
+          'Be sure to set the following: -s/--sample_id, -n/--n_timepoints, -y/--outcome_variable, -a/--annotation_variables')
+
 if args.man_split and len(args.holdout_samples) < 1:
     error('Set -t/--holdout_samples when --man_split was set.')
 
@@ -196,11 +201,39 @@ if args.man_split and len(args.holdout_samples) < 1:
 # ------ loacl classes ------
 class DataLoader(object):
     """
-    Data loading class
+    # Purpose
+        Data loading class.
 
-    To do:
-        [ ] add length check for outcome variable values
-        [ ] set up X and Y
+    # Details
+        This class is designed to load the data and set up data for training LSTM models.
+
+    # methods
+        __init__: load data and other information form argparser
+        data_split: set up data for model training. No data splitting for the "CV only" mode.
+
+    # public class attributes
+        cwd: str. working directory
+        model_type: str. model type, classification or regression
+        y_var: str. variable nanme for outcome
+        file: str. complete input file path
+        filename: str. input file name without extension
+        raw: pandas dataframe. input data
+        annot_vars: list of strings. column names for the annotation variables in the input dataframe
+        n_timepints: int. number of timepoints
+        n_features: int. number of features
+
+    # private class attributes (excluding class property)
+        _rand: int. random state
+        _basename: str. complete file name (with extension), no path
+        _n_annot_col: int. number of annotation columns
+
+    # class property
+        modelling_data: set up the data for model training. data is split if necessary. 
+            returns a dict object with 'training' and 'test' items
+
+            _m_data: dict. output dictionary
+            _training: pandas dataframe. data for model training.
+            _test: pandas dataframe. holdout test data. Only available without the "--cv_only" flag
     """
 
     def __init__(self):
@@ -214,6 +247,7 @@ class DataLoader(object):
         self._rand = args.random_state
 
         # load files
+        self.model_type = args.model_type
         # convert to a list for training_test_spliter_final() to use
         self.y_var = [args.outcome_variable]
 
@@ -231,51 +265,47 @@ class DataLoader(object):
                   'Please check.')
         else:
             self.raw = pd.read_csv(self.file, engine='python')
-
             self.annot_vars = args.annotation_variables
             self._n_annot_col = len(self.annot_vars)
             self.n_timepoints = args.n_timepoints
             self.n_features = int(
                 (self.raw.shape[1] - self._n_annot_col) // self.n_timepoints)  # pd.shape[1]: ncol
 
-    def data_split(self, percentage, random_state):
-        if args.cv_only:
-            self.test_x, self.test_y = None, None
+    @property
+    def modelling_data(self):
+        return self._m_data
 
-            self.training_x = None
-            self.training_y = None
+    @modelling_data.setter
+    def modelling_data(self, percentage, random_state):
+        if args.cv_only:  # only training is stored
+            self._training, self._test = self.raw, None
         else:
+            # training and holdout test data split
             if args.man_split:
-                # check manual split values
-                # [[[[TBC]]]]
-
-                # manual data split
-                self.training, self.test, _, _ = training_test_spliter_final(data=self.raw, random_state=self._rand,
-                                                                             man_split=args.man_split, man_split_colname=args.sample_id,
-                                                                             man_split_testset_value=args.holdout_samples)
+                # manual data split: the checks happen in the training_test_spliter_final() function
+                self._training, self._test, _, _ = training_test_spliter_final(data=self.raw, random_state=self._rand,
+                                                                               man_split=args.man_split, man_split_colname=args.sample_id,
+                                                                               man_split_testset_value=args.holdout_samples,
+                                                                               x_standardization=False, y_min_max_scaling=False)
             else:
-                self.training, self.test, _, _ = training_test_spliter_final(
-                    data=self.raw, random_state=self._rand, man_split=args.man_split)
+                self._training, self._test, _, _ = training_test_spliter_final(
+                    data=self.raw, random_state=self._rand, man_split=args.man_split, training_percent=args.training_percentage)
 
-    def processing(self):
-        if args.cv_only:
-            self.training_x = None
-        else:
-            self.training_x = None
+        self._m_data = {'training': self._training, 'test': self._test}
 
 
-# class model_LSTM(object):
+# class smpleLSTM(object):
 #     """
 #     Modelling
 #     """
 
-#     def __init__(self):
+#     def __init__(self, x, y, n_timepoints, n_features):
 #         self.lstm = None
 #         self.hidden_unit = args.hidden_unit
 #         self.epoches = args.epoches
 #         self.model_type = args.model_type
-#         self.data = DataLoader()
-#         self.n_timepoint = self.data.n_timepoint
+#         self.n_timepoints = n_timepoints
+#         self.n_features = n_features
 
 #     def simple_model(self):
 #         None
@@ -310,6 +340,8 @@ print("\n")
 print("number of timepoints in the input file: {}".format(mydata.n_timepoints))
 print("\n")
 print("number of features in the inpout file: {}".format(mydata.n_features))
+
+mydata.data_split
 
 
 # print('mydata.cwd: {}'.format(mydata.cwd))
