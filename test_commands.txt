@@ -8,4 +8,5 @@ $ test commands
 -nt=2 -ct='kfold' -av subject, PCL, group
 
 ./testrealm.py \
-data/v4/lstm_aec_phases_freq1_v4.csv
+data/v4/lstm_aec_phases_freq1_v4.csv \
+-s "subject" -n 2 -y 'PCL' -a 'subject' 'PCL' 'group'

@@ -137,9 +137,9 @@ add_arg('file', nargs=1, default=[],
 add_arg('-w', "--working_dir", type=str, default=None,
         help='str. Working directory if not the current one')
 
-add_arg('-s', '--sample_id', type=str, default=None,
+add_arg('-s', '--sample_id_var', type=str, default=None,
         help='str. Vairable name for sample ID. NOTE: only needed with single file processing')
-add_arg('-a', '--annotation_variables', type=str, nargs="+", default=[],
+add_arg('-a', '--annotation_vars', type=str, nargs="+", default=[],
         help='names of the annotation columns in the input data. NOTE: only needed with single file processing')
 add_arg("-n", '--n_timepoints', type=int, default=None,
         help='int. Number of timepoints. NOTE: only needed with single file processing')
@@ -147,7 +147,7 @@ add_arg('-y', '--outcome_variable', type=str, default=None,
         help='str. Vairable name for outcome. NOTE: only needed with single file processing')
 
 add_bool_arg(parser=parser, name='man_split', input_type='flag',
-             help='Manually split data into training and test sets. When set, the split is on -s/--sample_id.', default=False)
+             help='Manually split data into training and test sets. When set, the split is on -s/--sample_id_var.', default=False)
 add_arg('-t', '--holdout_samples', nargs='+', type=str, default=[],
         help='str. Sample IDs selected as holdout test group when --man_split was set')
 add_arg('-p', '--training_percentage', type=float, default=0.8,
@@ -181,18 +181,18 @@ add_arg('-j', '--plot-type', type=str,
 
 args = parser.parse_args()
 # check the arguments. did not use parser.error as error() has fancy colours
-if not args.sample_id:
-    error('-s/--sample_id missing.',
-          'Be sure to set the following: -s/--sample_id, -n/--n_timepoints, -y/--outcome_variable, -a/--annotation_variables')
+if not args.sample_id_var:
+    error('-s/--sample_id_var missing.',
+          'Be sure to set the following: -s/--sample_id_var, -n/--n_timepoints, -y/--outcome_variable, -a/--annotation_vars')
 if not args.n_timepoints:
     error('-n/--n_timepoints flag missing.',
-          'Be sure to set the following: -s/--sample_id, -n/--n_timepoints, -y/--outcome_variable, -a/--annotation_variables')
+          'Be sure to set the following: -s/--sample_id_var, -n/--n_timepoints, -y/--outcome_variable, -a/--annotation_vars')
 if not args.outcome_variable:
     error('-y/--outcome_variable flag missing.',
-          'Be sure to set the following: -s/--sample_id, -n/--n_timepoints, -y/--outcome_variable, -a/--annotation_variables')
-if len(args.annotation_variables) < 1:
-    error('-a/--annotation_variables missing.',
-          'Be sure to set the following: -s/--sample_id, -n/--n_timepoints, -y/--outcome_variable, -a/--annotation_variables')
+          'Be sure to set the following: -s/--sample_id_var, -n/--n_timepoints, -y/--outcome_variable, -a/--annotation_vars')
+if len(args.annotation_vars) < 1:
+    error('-a/--annotation_vars missing.',
+          'Be sure to set the following: -s/--sample_id_var, -n/--n_timepoints, -y/--outcome_variable, -a/--annotation_vars')
 
 if args.man_split and len(args.holdout_samples) < 1:
     error('Set -t/--holdout_samples when --man_split was set.')
@@ -228,7 +228,7 @@ class DataLoader(object):
         _n_annot_col: int. number of annotation columns
 
     # class property
-        modelling_data: set up the data for model training. data is split if necessary. 
+        modelling_data: set up the data for model training. data is split if necessary.
             returns a dict object with 'training' and 'test' items
 
             _m_data: dict. output dictionary
@@ -265,18 +265,22 @@ class DataLoader(object):
                   'Please check.')
         else:
             self.raw = pd.read_csv(self.file, engine='python')
-            self.annot_vars = args.annotation_variables
+            self.annot_vars = args.annotation_vars
             self._n_annot_col = len(self.annot_vars)
             self.n_timepoints = args.n_timepoints
             self.n_features = int(
                 (self.raw.shape[1] - self._n_annot_col) // self.n_timepoints)  # pd.shape[1]: ncol
 
+        self.modelling_data = args.man_split  # call setter here
+
     @property
     def modelling_data(self):
-        return self._m_data
+        # print("called getter") # for debugging
+        return self._modelling_data
 
     @modelling_data.setter
-    def modelling_data(self, percentage, random_state):
+    def modelling_data(self, man_split):
+        # print("called setter") # for debugging
         if args.cv_only:  # only training is stored
             self._training, self._test = self.raw, None
         else:
@@ -284,14 +288,15 @@ class DataLoader(object):
             if args.man_split:
                 # manual data split: the checks happen in the training_test_spliter_final() function
                 self._training, self._test, _, _ = training_test_spliter_final(data=self.raw, random_state=self._rand,
-                                                                               man_split=args.man_split, man_split_colname=args.sample_id,
+                                                                               man_split=man_split, man_split_colname=args.sample_id_var,
                                                                                man_split_testset_value=args.holdout_samples,
                                                                                x_standardization=False, y_min_max_scaling=False)
             else:
                 self._training, self._test, _, _ = training_test_spliter_final(
-                    data=self.raw, random_state=self._rand, man_split=args.man_split, training_percent=args.training_percentage)
-
-        self._m_data = {'training': self._training, 'test': self._test}
+                    data=self.raw, random_state=self._rand, man_split=man_split, training_percent=args.training_percentage,
+                    x_standardization=False, y_min_max_scaling=False)
+        self._modelling_data = {
+            'training': self._training, 'test': self._test}
 
 
 # class smpleLSTM(object):
@@ -324,9 +329,6 @@ class DataLoader(object):
 # -- read data --
 print(args)
 print('\n')
-print(len(args.file))
-print(args.file[0])
-
 print(os.path.exists(args.file[0]))
 
 mydata = DataLoader()
@@ -334,25 +336,14 @@ print(mydata.raw)
 print("\n")
 print("input file path: {}".format(mydata.file))
 print("\n")
-print("input file name: {}. input file extension: {}".format(
-    mydata.filename,  mydata.name_ext))
+print("input file name: {}".format(mydata.filename))
 print("\n")
 print("number of timepoints in the input file: {}".format(mydata.n_timepoints))
 print("\n")
 print("number of features in the inpout file: {}".format(mydata.n_features))
 
-mydata.data_split
+print(mydata.modelling_data['training'])
 
-
-# print('mydata.cwd: {}'.format(mydata.cwd))
-# print('self._n_timepoints: {}, self._holdout:{}, self._annot_var:{}, self._sample_id_var:{}'.format(
-#     mydata._n_timepoints, mydata._holdout, mydata._annot_var, mydata._sample_id_var))
-
-# print('self._n_timepoints_dict: {}'.format(mydata._n_timepoints_dict))
-# print('\n')
-# print('self._holdout_dict:{}'.format(mydata._holdout_dict))
-# print('\n')
-# print('self._outcome_var_dict'.format(mydata._outcome_var_dict))
 
 # -- file processing --
 
