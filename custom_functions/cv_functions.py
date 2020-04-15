@@ -218,6 +218,7 @@ def lstm_cv_train(trainX, trainY, testX, testY,
     # this might not work: TO BE TESTED
     if outcome_type == 'classification':
         trainY = to_categorical(trainY)
+        testY = to_categorical(testY)
 
     # modelling
     # callback
