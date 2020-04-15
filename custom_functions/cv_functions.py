@@ -223,8 +223,8 @@ def lstm_cv_train(trainX, trainY, testX, testY,
     # callback
     earlystop_callback = EarlyStopping(monitor='val_loss', patience=5)
     if log_dir:
-        tfbaord_callback = TensorBoard(log_dir=log_dir)
-        callbacks = [tfbaord_callback, earlystop_callback]
+        tfboard_callback = TensorBoard(log_dir=log_dir)
+        callbacks = [tfboard_callback, earlystop_callback]
     else:
         callbacks = [earlystop_callback]
 

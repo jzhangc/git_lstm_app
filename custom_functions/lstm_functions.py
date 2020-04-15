@@ -40,8 +40,9 @@ def simple_lstm_m(n_steps, n_features, n_output=1, hidden_units=50,
         The output_action function "sigmoid" can be used for the min-max scaled data to (0, 1)
     """
     m = Sequential()
-    m.add(LSTM(units=hidden_units, activation='relu',
-               input_shape=(n_steps, n_features)))
+    m.add(LSTM(units=hidden_units, input_shape=(n_steps, n_features)))
+    # m.add(LSTM(units=hidden_units, activation='tanh',
+    #            input_shape=(n_steps, n_features)))
     m.add(Dense(units=n_output, activation=output_activation))
     m.compile(loss=loss, optimizer=optimizer)  # regression study
     return m
@@ -97,9 +98,12 @@ def stacked_lstm_m(n_steps, n_features, n_output=1, hidden_units=50,
         The output_action function "sigmoid" can be used for the min-max scaled data to (0, 1)
     """
     m = Sequential()
-    m.add(LSTM(units=hidden_units, activation='relu', return_sequences=True,
+    m.add(LSTM(units=hidden_units, return_sequences=True,
                input_shape=(n_steps, n_features)))
-    m.add(LSTM(units=hidden_units, activation='relu'))
+    m.add(LSTM(units=hidden_units))
+    # m.add(LSTM(units=hidden_units, activation='relu', return_sequences=True,
+    #            input_shape=(n_steps, n_features)))
+    # m.add(LSTM(units=hidden_units, activation='relu'))
     m.add(Dense(units=n_output, activation=output_activation))
     m.compile(loss=loss, optimizer=optimizer)  # regression study
     return m

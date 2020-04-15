@@ -8,21 +8,27 @@ Current objectives:
 [ ] 5. Test training
 """
 
+import argparse
+import os
 # ------ import modules ------
 # import math
 import sys
-import os
-# import glob
 import threading
-import argparse
-# import queue
 from datetime import datetime
+
 import numpy as np
 import pandas as pd
+import tensorflow as tf
+from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
+from tensorflow.keras.layers import (LSTM, BatchNormalization, Bidirectional,
+                                     Dense, Dropout)
+from tensorflow.keras.models import Sequential
+
 from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
                                            lstm_cv_train, lstm_ensemble_eval,
                                            lstm_ensemble_predict)
 from custom_functions.data_processing import training_test_spliter_final
+
 # from tensorflow.keras.callbacks import History  # for input argument type check
 # from matplotlib import pyplot as plt
 # from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
@@ -159,21 +165,38 @@ add_arg('-f', '--cv_fold', type=int, default=10,
         help='int. Number fo cross validation fold when --cross_validation-type=\'kfold\'')
 add_bool_arg(parser=parser, name='cv_only', input_type='flag',
              help='Explort a scatter plot', default=False)
+add_arg('-r', '--random_state', type=int, default=1, help='int. Random state')
 
 add_arg('-m', '--model_type', type=str, choices=['regression', 'classification'],
         default='classifciation', help='str. Model type. Options: \'regression\' and \'classification\'')
-add_arg('-l', '--lstm_type', type=str, choices=['simple', 'stacked', 'bidirectional'],
+add_arg('-l', '--lstm_type', type=str, choices=['simple', 'bidirectional'],
         default='simple',
-        help='str. LSTM model type. Options: \'simple\', \'stacked\', and \'bidirectional\'')
-add_arg('-u', '--hidden_unit', type=int, default=50,
-        help='int. Number of hidden unit for the LSTM netework')
-add_arg('-e', '--epoches', type=int, default=500,
-        help='int. Number of epoches for LSTM modelling')
+        help='str. LSTM model type. \'simple\' also contains stacked strcuture.')
+add_arg('-ns', '--n_stack', type=int, default=1,
+        help='int. Number of LSTM stacks. 1 means no stack.')
+add_arg('-e', '--epochs', type=int, default=500,
+        help='int. Number of epochs for LSTM modelling')
 add_arg('-b', '--batch_size', type=int, default=32,
         help='int. The batch size for LSTM modeling')
+add_arg('-d', '--dense_activation', type=str, choices=['relu', 'linear', 'sigmoid', 'softmax'],
+        default='linear', help='str. Acivitation function for the dense layer of the LSTM model.')
+add_arg('-c', '--loss', type=str,
+        choices=['mean_squared_error', 'binary_crossentropy',
+                 'categorical_crossentropy', 'sparse_categorical_crossentropy', 'hinge'],
+        default='mean_squared_error', help='str. Loss function for LSTM models.')
+add_arg('-g', '--optimizer', type=str,
+        choices=['adam'], default='adam', help='str. Model optimizer.')
+add_arg('-u', '--hidden_units', type=int, default=50,
+        help='int. Number of hidden unit for the LSTM netework')
+add_arg('-x', '--dropout_rate', type=float, default=0.0,
+        help='float, 0.0~1.0. Dropout rate for LSTM models . 0.0 means no dropout.')
+add_bool_arg(parser=parser, name='stateful', input_type='flag', default=False,
+             help="Use stateful LSTM for modelling.")
+
 add_arg('-o', '--output_dir', type=str,
         default='.', help='str. Output directory')
-add_arg('-r', '--random_state', type=int, default=1, help='int. Random state')
+
+
 add_bool_arg(parser=parser, name='plot', input_type='flag',
              help='Explort a scatter plot', default=False)
 add_arg('-j', '--plot-type', type=str,
@@ -197,6 +220,12 @@ if len(args.annotation_vars) < 1:
 if args.man_split and len(args.holdout_samples) < 1:
     error('Set -t/--holdout_samples when --man_split was set.')
 
+if args.dropout_rate < 0.0 or args.dropout_rate > 1.0:
+    error('-x/--dropout_rate should be between 0.0 and 1.0.')
+
+if args.n_stack < 1:
+    error('-ns/--n_stack should be equal to or greater than 1.')
+
 
 # ------ loacl classes ------
 class DataLoader(object):
@@ -207,11 +236,11 @@ class DataLoader(object):
     # Details
         This class is designed to load the data and set up data for training LSTM models.
 
-    # methods
-        __init__: load data and other information form argparser
+    # Methods
+        __init__: load data and other information from argparser
         data_split: set up data for model training. No data splitting for the "CV only" mode.
 
-    # public class attributes
+    # Public class attributes
         cwd: str. working directory
         model_type: str. model type, classification or regression
         y_var: str. variable nanme for outcome
@@ -222,12 +251,12 @@ class DataLoader(object):
         n_timepints: int. number of timepoints
         n_features: int. number of features
 
-    # private class attributes (excluding class property)
+    # Private class attributes (excluding class property)
         _rand: int. random state
         _basename: str. complete file name (with extension), no path
         _n_annot_col: int. number of annotation columns
 
-    # class property
+    # Class property
         modelling_data: set up the data for model training. data is split if necessary.
             returns a dict object with 'training' and 'test' items
 
@@ -299,31 +328,88 @@ class DataLoader(object):
             'training': self._training, 'test': self._test}
 
 
-# class smpleLSTM(object):
-#     """
-#     Modelling
-#     """
+class simpleLSTM(object):
+    """
+    # Purpose
+        Simple or stacked LSTM modelling class
 
-#     def __init__(self, x, y, n_timepoints, n_features):
-#         self.lstm = None
-#         self.hidden_unit = args.hidden_unit
-#         self.epoches = args.epoches
-#         self.model_type = args.model_type
-#         self.n_timepoints = n_timepoints
-#         self.n_features = n_features
+    # Methods
+        __init__: load data and other information from DataLoader class and argparser
+        lstm_m: setup simple or stacked LSTM model and compile        
 
-#     def simple_model(self):
-#         None
+    # Public class attributes
+        n_stack: int. number of LSTM stacks
+        hidden_units: int. number of hidden units
+        epochs: int. number of epochs
+        n_timepoints: int. number of timeopints (steps)
+        n_features: int. number of features per timepoint
+        dense_activation: str. activation function for the MLP (decision making/output DNN)
+        loss: str. loss function
+        stateful: bool. if to use stateful LSTM
 
-#     def stacked_model(self):
-#         None
 
-#     def bidirectional_model(self):
-#         None
+    # Private class attributes (excluding class property)
+
+    # Class property
+
+    """
+
+    def __init__(self, trainX, trainY, testX, testY, n_timepoints, n_features):
+        self.trainX = trainX
+        self.trainY = trainY
+        self.testX = testX
+        self.testY = testY
+        self.n_stack = args.n_stack
+        self.hidden_units = args.hidden_units
+        self.epochs = args.epochs
+        self.batch_size = args.batch
+        self.n_timepoints = n_timepoints
+        self.n_features = n_features
+        self.stateful = args.stateful
+        self.dropout = args.dropout_rate
+        self.dense_activation = args.dense_activation
+        self.loss = args.loss
+        self.optimizer = args.optimizer
+        self.n_stack = args.n_stack
+
+    def lstm_m(self, n_output=1):
+        # model setup
+        m = Sequential()
+        if self.n_stack > 1:  # if to use stacked LSTM or not
+            m.add(LSTM(units=self.hidden_units, return_sequences=True,
+                       input_shape=(
+                           self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout))
+            m.add(BatchNormalization())
+            for _ in range(self.n_stack):
+                m.add(LSTM(units=self.hidden_units))
+                m.add(BatchNormalization())
+        else:
+            m.add(LSTM(units=self.hidden_units, input_shape=(
+                self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout))
+            m.add(BatchNormalization())
+        m.add(Dense(units=n_output, activation=self.dense_activation))
+
+        # model compiling
+        m.compile(loss=self.loss, optimizer=self.optimizer)
+        self.m = m
+
+    def lstm_fit(self, log_dir=None):
+        self._earlystop_callback = EarlyStopping(
+            monitor='val_loss', patience=5)
+        if log_dir:
+            self._tfboard_callback = TensorBoard(log_dir=log_dir)
+            self._callbacks = [
+                self._earlystop_callback, self._tfboard_callback]
+        else:
+            self._callbacks = [self._earlystop_callback]
+
+        self.m.fit(x=self.trainX, y=self.trainY, epochs=self.epochs,
+                   batch_size=self.batch_size, callbacks=self._callbacks,
+                   validation_data=(self.testX, self.testY),
+                   verbose=False)
 
 
 # ------ local variables ------
-
 # ------ setup output folders ------
 # ------ training pipeline ------
 # -- read data --
