@@ -228,7 +228,7 @@ class DataLoader(object):
         _n_annot_col: int. number of annotation columns
 
     # class property
-        modelling_data: set up the data for model training. data is split if necessary. 
+        modelling_data: set up the data for model training. data is split if necessary.
             returns a dict object with 'training' and 'test' items
 
             _m_data: dict. output dictionary
@@ -271,12 +271,16 @@ class DataLoader(object):
             self.n_features = int(
                 (self.raw.shape[1] - self._n_annot_col) // self.n_timepoints)  # pd.shape[1]: ncol
 
+        self.modelling_data = args.man_split  # call setter here
+
     @property
     def modelling_data(self):
-        return self._m_data
+        # print("called getter") # for debugging
+        return self._modelling_data
 
     @modelling_data.setter
-    def modelling_data(self, percentage, random_state):
+    def modelling_data(self, man_split):
+        # print("called setter") # for debugging
         if args.cv_only:  # only training is stored
             self._training, self._test = self.raw, None
         else:
@@ -284,14 +288,15 @@ class DataLoader(object):
             if args.man_split:
                 # manual data split: the checks happen in the training_test_spliter_final() function
                 self._training, self._test, _, _ = training_test_spliter_final(data=self.raw, random_state=self._rand,
-                                                                               man_split=args.man_split, man_split_colname=args.sample_id_var,
+                                                                               man_split=man_split, man_split_colname=args.sample_id_var,
                                                                                man_split_testset_value=args.holdout_samples,
                                                                                x_standardization=False, y_min_max_scaling=False)
             else:
                 self._training, self._test, _, _ = training_test_spliter_final(
-                    data=self.raw, random_state=self._rand, man_split=args.man_split, training_percent=args.training_percentage)
-
-        self._m_data = {'training': self._training, 'test': self._test}
+                    data=self.raw, random_state=self._rand, man_split=man_split, training_percent=args.training_percentage,
+                    x_standardization=False, y_min_max_scaling=False)
+        self._modelling_data = {
+            'training': self._training, 'test': self._test}
 
 
 # class smpleLSTM(object):
@@ -324,9 +329,6 @@ class DataLoader(object):
 # -- read data --
 print(args)
 print('\n')
-print(len(args.file))
-print(args.file[0])
-
 print(os.path.exists(args.file[0]))
 
 mydata = DataLoader()
@@ -334,25 +336,14 @@ print(mydata.raw)
 print("\n")
 print("input file path: {}".format(mydata.file))
 print("\n")
-print("input file name: {}. input file extension: {}".format(
-    mydata.filename,  mydata.name_ext))
+print("input file name: {}".format(mydata.filename))
 print("\n")
 print("number of timepoints in the input file: {}".format(mydata.n_timepoints))
 print("\n")
 print("number of features in the inpout file: {}".format(mydata.n_features))
 
-mydata.data_split
+print(mydata.modelling_data['training'])
 
-
-# print('mydata.cwd: {}'.format(mydata.cwd))
-# print('self._n_timepoints: {}, self._holdout:{}, self._annot_var:{}, self._sample_id_var:{}'.format(
-#     mydata._n_timepoints, mydata._holdout, mydata._annot_var, mydata._sample_id_var))
-
-# print('self._n_timepoints_dict: {}'.format(mydata._n_timepoints_dict))
-# print('\n')
-# print('self._holdout_dict:{}'.format(mydata._holdout_dict))
-# print('\n')
-# print('self._outcome_var_dict'.format(mydata._outcome_var_dict))
 
 # -- file processing --
 
