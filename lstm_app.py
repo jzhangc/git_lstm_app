@@ -7,11 +7,10 @@ Current objectives:
 [ ] 4. Test file processing
 [ ] 5. Test training
 """
-
-import argparse
-import os
 # ------ import modules ------
-# import math
+import argparse
+import math
+import os
 import sys
 import threading
 from datetime import datetime
@@ -185,7 +184,7 @@ add_arg('-c', '--loss', type=str,
                  'categorical_crossentropy', 'sparse_categorical_crossentropy', 'hinge'],
         default='mean_squared_error', help='str. Loss function for LSTM models.')
 add_arg('-g', '--optimizer', type=str,
-        choices=['adam'], default='adam', help='str. Model optimizer.')
+        choices=['adam', 'sgd'], default='adam', help='str. Model optimizer.')
 add_arg('-u', '--hidden_units', type=int, default=50,
         help='int. Number of hidden unit for the LSTM netework')
 add_arg('-x', '--dropout_rate', type=float, default=0.0,
@@ -328,47 +327,39 @@ class DataLoader(object):
             'training': self._training, 'test': self._test}
 
 
-class simpleLSTM(object):
+class lstmModel(object):
     """
     # Purpose
         Simple or stacked LSTM modelling class
 
     # Methods
         __init__: load data and other information from DataLoader class and argparser
-        lstm_m: setup simple or stacked LSTM model and compile        
-
-    # Public class attributes
-        trainX: numpy ndarray for training X. shape requirment: n_samples x n_timepoints x n_features.
-        trainY: numpy ndarray for training Y. shape requirement: n_samples.
-        testX: numpy ndarray for test X. shape requirment: n_samples x n_timepoints x n_features.
-        testY: numpy ndarray for test Y. shape requirement: n_samples.
-        n_stack: int. number of LSTM stacks
-        hidden_units: int. number of hidden units
-        epochs: int. number of epochs
-        batch_size: int. batch size
-        n_timepoints: int. number of timeopints (steps)
-        n_features: int. number of features per timepoint
-        stateful: bool. if to use stateful LSTM
-        dropout: float. dropout rate for LSTM
-        dense_activation: str. activation function for the MLP (decision making/output DNN)
-        loss: str. loss function
-        optimizer: str. Optimizer type
-        m: LSTM model
-
-    # Private class attributes (excluding class property)
-        _earlystop_callback: early stop callback
-        _tfboard_callback: tensorboard callback
-        _callbacks: list. a list of callbacks for model fitting
-
-    # Class property
-
+        simple_lstm_m: setup simple or stacked LSTM model and compile
+        bidir_lstm_m: setup bidirectional LSTM model and compile
+        lstm_fit: LSTM model fitting
+        lstm_eval: additional LSTM model evaluation
     """
 
-    def __init__(self, trainX, trainY, testX, testY, n_timepoints, n_features):
-        self.trainX = trainX
-        self.trainY = trainY
-        self.testX = testX
-        self.testY = testY
+    def __init__(self,  model_type, n_timepoints, n_features):
+        """
+        # Behaviour
+            The initilizer loads model configs from arg parser 
+
+        # Public class attributes
+            model_type: str. model type
+            n_stack: int. number of LSTM stacks
+            hidden_units: int. number of hidden units
+            epochs: int. number of epochs
+            batch_size: int. batch size
+            n_timepoints: int. number of timeopints (steps)
+            n_features: int. number of features per timepoint
+            stateful: bool. if to use stateful LSTM
+            dropout: float. dropout rate for LSTM
+            dense_activation: str. activation function for the MLP (decision making/output DNN)
+            loss: str. loss function
+            optimizer: str. Optimizer type
+        """
+        self.model_type = model_type
         self.n_stack = args.n_stack
         self.hidden_units = args.hidden_units
         self.epochs = args.epochs
@@ -381,28 +372,86 @@ class simpleLSTM(object):
         self.loss = args.loss
         self.optimizer = args.optimizer
 
-    def lstm_m(self, n_output=1):
+    def simple_lstm_m(self, n_output=1):
+        """
+        # Behaviour
+            This method uses dropout and batch normalization
+
+        # Public class attributes
+            simple_m: simple or stacked LSTM model
+            m: the final LSTM model
+        """
         # model setup
-        m = Sequential()
+        self.simple_m = Sequential()
         if self.n_stack > 1:  # if to use stacked LSTM or not
-            m.add(LSTM(units=self.hidden_units, return_sequences=True,
-                       input_shape=(
-                           self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout))
-            m.add(BatchNormalization())
+            self.simple_m.add(LSTM(units=self.hidden_units, return_sequences=True,
+                                   input_shape=(
+                                       self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout))
+            self.simple_m.add(BatchNormalization())
             for _ in range(self.n_stack):
-                m.add(LSTM(units=self.hidden_units))
-                m.add(BatchNormalization())
+                self.simple_m.add(LSTM(units=self.hidden_units))
+                self.simple_m.add(BatchNormalization())
         else:
-            m.add(LSTM(units=self.hidden_units, input_shape=(
+            self.simple_m.add(LSTM(units=self.hidden_units, input_shape=(
                 self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout))
-            m.add(BatchNormalization())
-        m.add(Dense(units=n_output, activation=self.dense_activation))
+            self.simple_m.add(BatchNormalization())
+        self.simple_m.add(
+            Dense(units=n_output, activation=self.dense_activation))
 
         # model compiling
-        m.compile(loss=self.loss, optimizer=self.optimizer)
-        self.m = m
+        self.simple_m.compile(
+            loss=self.loss, optimizer=self.optimizer, metrics=['mse', 'accuracy'])
+        self.m = self.simple_m
 
-    def lstm_fit(self, log_dir=None):
+    def bidir_lstm_m(self, n_output=1):
+        """
+        # Behaviour
+            This method uses dropout and batch normalization
+
+        # Public class attributes
+            bidir_m: bidirectional LSTM model
+            m: the final LSTM model
+            m_history: model history with metrices etc
+        """
+        # model setup
+        self.bidir_m = Sequential()
+        self.bidir_m.add(Bidirectional(LSTM(units=self.hidden_units, return_sequences=True,
+                                            input_shape=(
+                                                self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout)))
+        self.bidir_m.add(BatchNormalization())
+        self.bidir_m.add(
+            Dense(units=n_output, activation=self.dense_activation))
+        self.bidir_m.compile(loss=self.loss, optimizer=self.optimize, metrics=[
+                             'mse', 'accuracy'])
+        self.m = self.bidir_m
+
+    def lstm_fit(self, trainX, trainY, testX, testY, log_dir=None):
+        """
+        # Arguments
+            trainX: numpy ndarray for training X. shape requirment: n_samples x n_timepoints x n_features
+            trainY: numpy ndarray for training Y. shape requirement: n_samples
+            testX: numpy ndarray for test X. shape requirment: n_samples x n_timepoints x n_features
+            testY: numpy ndarray for test Y. shape requirement: n_samples
+            log_dir: str. path to output tensorboard results. It is opitonal
+
+        # Public class attributes
+            trainX: numpy ndarray for training X. shape requirment: n_samples x n_timepoints x n_features
+            trainY: numpy ndarray for training Y. shape requirement: n_samples
+            testX: numpy ndarray for test X. shape requirment: n_samples x n_timepoints x n_features
+            testY: numpy ndarray for test Y. shape requirement: n_samples
+
+        # Private class attributes (excluding class property)
+            _earlystop_callback: early stop callback
+            _tfboard_callback: tensorboard callback
+            _callbacks: list. a list of callbacks for model fitting
+        """
+        # data
+        self.trainX = trainX
+        self.trainY = trainY
+        self.testX = testX
+        self.testY = testY
+
+        # callbakcs
         self._earlystop_callback = EarlyStopping(
             monitor='val_loss', patience=5)
         if log_dir:
@@ -412,16 +461,54 @@ class simpleLSTM(object):
         else:
             self._callbacks = [self._earlystop_callback]
 
-        self.m.fit(x=self.trainX, y=self.trainY, epochs=self.epochs,
-                   batch_size=self.batch_size, callbacks=self._callbacks,
-                   validation_data=(self.testX, self.testY),
-                   verbose=True)
+        # fitting
+        self.m_history = self.m.fit(x=self.trainX, y=self.trainY, epochs=self.epochs,
+                                    batch_size=self.batch_size, callbacks=self._callbacks,
+                                    validation_data=(self.testX, self.testY),
+                                    verbose=True)
+
+    def lstm_eval(self, newX=None, newY=None):
+        """
+        # Purpose
+            Evalutate model performance with new data
+
+        # Arguments
+            newX: numpy ndarray for new data X. shape requirment: n_samples x n_timepoints x n_features
+            newY: numpy ndarray for new data Y. shape requirement: n_samples
+        """
+        # evaluate
+        if self.model_type == 'regression':
+            self._mse = self.m.evaluate(newX, newY, verbose=True)
+            self.accuracy = None
+        else:
+            self._mse, self.accuracy = self.m.evaluate(
+                newX, newY, verbose=True)
+        self.rmse = math.sqrt(self._mse)
 
 
-# ------ local variables ------
-# ------ setup output folders ------
-# ------ training pipeline ------
-# -- read data --
+class cvTraining(object):
+    """
+    # Purpose
+        Use cross-validation to train models.
+
+    # Behaviours
+        This class uses the LSTM model classes
+
+    # Methods
+
+    # Public class attributes
+
+    # Private class attributes (excluding class property)
+
+    # Class property
+    """
+
+    def __init__(self, training):
+        # TBC
+        None
+
+
+# ------ test ------
 print(args)
 print('\n')
 print(os.path.exists(args.file[0]))
@@ -439,14 +526,7 @@ print("number of features in the inpout file: {}".format(mydata.n_features))
 
 print(mydata.modelling_data['training'])
 
-
-# -- file processing --
-
-
-# -- training and export --
-
-# -- model evaluation and plotting --
-
 # ------ process/__main__ statement ------
+# ------ setup output folders ------
 # if __name__ == '__main__':
 #     mydata = DataLoader()
