@@ -41,7 +41,7 @@ def simple_lstm_m(n_steps, n_features, n_output=1, hidden_units=50,
     """
     m = Sequential()
     m.add(LSTM(units=hidden_units, input_shape=(n_steps, n_features)))
-    # m.add(LSTM(units=hidden_units, activation='tanh',
+    # m.add(LSTM(units=hidden_units, activation='relu',
     #            input_shape=(n_steps, n_features)))
     m.add(Dense(units=n_output, activation=output_activation))
     m.compile(loss=loss, optimizer=optimizer)  # regression study

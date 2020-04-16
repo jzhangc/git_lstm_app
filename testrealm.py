@@ -184,7 +184,7 @@ add_arg('-c', '--loss', type=str,
                  'categorical_crossentropy', 'sparse_categorical_crossentropy', 'hinge'],
         default='mean_squared_error', help='str. Loss function for LSTM models.')
 add_arg('-g', '--optimizer', type=str,
-        choices=['adam'], default='adam', help='str. Model optimizer.')
+        choices=['adam', 'sgd'], default='adam', help='str. Model optimizer.')
 add_arg('-u', '--hidden_units', type=int, default=50,
         help='int. Number of hidden unit for the LSTM netework')
 add_arg('-x', '--dropout_rate', type=float, default=0.0,
@@ -327,14 +327,15 @@ class DataLoader(object):
             'training': self._training, 'test': self._test}
 
 
-class simpleLSTM(object):
+class lstmModel(object):
     """
     # Purpose
         Simple or stacked LSTM modelling class
 
     # Methods
         __init__: load data and other information from DataLoader class and argparser
-        lstm_m: setup simple or stacked LSTM model and compile
+        simple_lstm_m: setup simple or stacked LSTM model and compile
+        bidir_lstm_m: setup bidirectional LSTM model and compile
         lstm_fit: LSTM model fitting
         lstm_eval: additional LSTM model evaluation
     """
@@ -371,32 +372,58 @@ class simpleLSTM(object):
         self.loss = args.loss
         self.optimizer = args.optimizer
 
-    def lstm_m(self, n_output=1):
+    def simple_lstm_m(self, n_output=1):
         """
         # Behaviour
             This method uses dropout and batch normalization
 
         # Public class attributes
-            m: LSTM model
+            simple_m: simple or stacked LSTM model
+            m: the final LSTM model
         """
         # model setup
-        self.m = Sequential()
+        self.simple_m = Sequential()
         if self.n_stack > 1:  # if to use stacked LSTM or not
-            self.m.add(LSTM(units=self.hidden_units, return_sequences=True,
-                            input_shape=(
-                                self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout))
-            self.m.add(BatchNormalization())
+            self.simple_m.add(LSTM(units=self.hidden_units, return_sequences=True,
+                                   input_shape=(
+                                       self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout))
+            self.simple_m.add(BatchNormalization())
             for _ in range(self.n_stack):
-                self.m.add(LSTM(units=self.hidden_units))
-                self.m.add(BatchNormalization())
+                self.simple_m.add(LSTM(units=self.hidden_units))
+                self.simple_m.add(BatchNormalization())
         else:
-            self.m.add(LSTM(units=self.hidden_units, input_shape=(
+            self.simple_m.add(LSTM(units=self.hidden_units, input_shape=(
                 self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout))
-            self.m.add(BatchNormalization())
-        self.m.add(Dense(units=n_output, activation=self.dense_activation))
+            self.simple_m.add(BatchNormalization())
+        self.simple_m.add(
+            Dense(units=n_output, activation=self.dense_activation))
 
         # model compiling
-        self.m.compile(loss=self.loss, optimizer=self.optimizer)
+        self.simple_m.compile(
+            loss=self.loss, optimizer=self.optimizer, metrics=['mse', 'accuracy'])
+        self.m = self.simple_m
+
+    def bidir_lstm_m(self, n_output=1):
+        """
+        # Behaviour
+            This method uses dropout and batch normalization
+
+        # Public class attributes
+            bidir_m: bidirectional LSTM model
+            m: the final LSTM model
+            m_history: model history with metrices etc
+        """
+        # model setup
+        self.bidir_m = Sequential()
+        self.bidir_m.add(Bidirectional(LSTM(units=self.hidden_units, return_sequences=True,
+                                            input_shape=(
+                                                self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout)))
+        self.bidir_m.add(BatchNormalization())
+        self.bidir_m.add(
+            Dense(units=n_output, activation=self.dense_activation))
+        self.bidir_m.compile(loss=self.loss, optimizer=self.optimize, metrics=[
+                             'mse', 'accuracy'])
+        self.m = self.bidir_m
 
     def lstm_fit(self, trainX, trainY, testX, testY, log_dir=None):
         """
@@ -435,10 +462,10 @@ class simpleLSTM(object):
             self._callbacks = [self._earlystop_callback]
 
         # fitting
-        self.m.fit(x=self.trainX, y=self.trainY, epochs=self.epochs,
-                   batch_size=self.batch_size, callbacks=self._callbacks,
-                   validation_data=(self.testX, self.testY),
-                   verbose=True)
+        self.m_history = self.m.fit(x=self.trainX, y=self.trainY, epochs=self.epochs,
+                                    batch_size=self.batch_size, callbacks=self._callbacks,
+                                    validation_data=(self.testX, self.testY),
+                                    verbose=True)
 
     def lstm_eval(self, newX=None, newY=None):
         """
@@ -462,10 +489,10 @@ class simpleLSTM(object):
 class cvTraining(object):
     """
     # Purpose
-        Use cross-validation to train models
+        Use cross-validation to train models.
 
     # Behaviours
-
+        This class uses the LSTM model classes
 
     # Methods
 
