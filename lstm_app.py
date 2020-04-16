@@ -18,6 +18,8 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from sklearn.model_selection import (KFold, LeaveOneOut, ShuffleSplit,
+                                     StratifiedKFold, StratifiedShuffleSplit)
 from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from tensorflow.keras.layers import (LSTM, BatchNormalization, Bidirectional,
                                      Dense, Dropout)
@@ -63,7 +65,7 @@ class AppArgParser(argparse.ArgumentParser):
     This is a sub class to argparse.ArgumentParser.
 
     Purpose
-                    The help page will display when (1) no argumment was provided, or (2) there is an error
+        The help page will display when (1) no argumment was provided, or (2) there is an error
     """
 
     def error(self, message, *lines):
@@ -152,11 +154,13 @@ add_arg('-y', '--outcome_variable', type=str, default=None,
         help='str. Vairable name for outcome. NOTE: only needed with single file processing')
 
 add_arg('-v', '--cv_type', type=str,
-        choices=['kfold', 'LOO', 'boot'], default='kfold', help='str. Cross validation type')
+        choices=['kfold', 'LOO', 'monte'], default='kfold', help='str. Cross validation type')
 add_arg('-f', '--cv_fold', type=int, default=10,
         help='int. Number of cross validation fold when --cv_type=\'kfold\'')
-add_arg('-nb', '--n_boot', type=int, default=10,
-        help='int. Number of bootstrap cross validation iterations when --cv_type=\'boot\'')
+add_arg('-mn', '--n_monte', type=int, default=10,
+        help='int. Number of Monte Carlo cross validation iterations when --cv_type=\'monte\'')
+add_arg('-mt', '--monte_test_rate', type=float, default=0.2,
+        help='float. Ratio for cv test data split when --cv_type=\'monte\'')
 add_bool_arg(parser=parser, name='cv_only', input_type='flag',
              help='Explort a scatter plot', default=False)
 add_bool_arg(parser=parser, name='man_split', input_type='flag',
@@ -226,8 +230,13 @@ if args.dropout_rate < 0.0 or args.dropout_rate > 1.0:
 if args.n_stack < 1:
     error('-ns/--n_stack should be equal to or greater than 1.')
 
+if args.cv_type == 'monte':
+    if args.monte_test_rate < 0.0 or args.monte_test_rate > 1.0:
+        error('-mt/--monte_test_rate should be between 0.0 and 1.0.')
 
 # ------ loacl classes ------
+
+
 class DataLoader(object):
     """
     # Purpose
@@ -496,17 +505,103 @@ class cvTraining(object):
         This class uses the LSTM model classes
 
     # Methods
-
-    # Public class attributes
-
-    # Private class attributes (excluding class property)
-
-    # Class property
+        __init__: load the CV configuration from arg parser
+        cv_splitting: calculate sub sample indices for cv according to the cv_type
     """
 
     def __init__(self, training):
-        # TBC
-        None
+        """
+        # argument 
+            training: pandas dataframe. input data: row is sample.
+
+        # Public class attributes
+            cv_type: str. cross validation type
+            n_iter: int. number of cv iterations according to cv_type
+
+        # Private class attributes (excluding class property)
+
+        # Class property
+        """
+        self.cv_type = args.cv_type
+        if self.cv_type == 'kfold':
+            self.n_iter = args.cv_fold
+        elif self.cv_type == 'LOO':
+            self.n_iter = training.shape[0]  # number of rows/samples
+        else:
+            self.n_iter = args.n_monte
+
+        self.monte_test_rate = args.monte_test_rate
+        self._rand = args.random_state
+        self._model_type = args.model_type
+        self._y_var = args.outcome_variable
+
+    def cv_spliting(self, training):
+        """
+        # Public class attributes
+            cv_training_idx: list of int array. sample (row) index for cv training data folds
+            cv_training_idx: list of int array. sample (row) index for cv test data folds
+
+        # Private class attributes (excluding class property)
+            _training: pandas dataframe. input training data. wit X and Y 
+            _kfold: sklearn.KFold/sklearn.StratifiedKFold object if cv_type='kfold', according to the model type
+            _loo: sklearn.LeaveOneOut object if cv_type='LOO'
+            _monte: sklearn.ShuffleSplit/sklearn.StratifiedShuffleSplit object if cv_type='monte', according to the model type
+            _train_index: int array. sample (row) index for one cv training data fold
+            _test_index: int array. sample (row) index for one cv test data fold
+        """
+        # atrributes
+        self._training = training
+
+        # spliting
+        self.cv_training_idx, self.cv_training_idx = list(), list()
+
+        if self.cv_type == 'LOO':  # leave one out, same for both regression and classification models
+            self._loo = LeaveOneOut()
+            for _train_index, _test_index in self._loo.split(training):
+                self.cv_training_idx.append(_train_index)
+                self.cv_training_idx.append(_test_index)
+        else:
+            if self._model_type == 'regression':
+                if self.cv_type == 'kfold':
+                    self._kfold = KFold(n_splits=self.n_iter,
+                                        shuffle=True, random_state=self._rand)
+                    for _train_index, _test_index in self._kfold.split(training):
+                        self.cv_training_idx.append(_train_index)
+                        self.cv_training_idx.append(_test_index)
+                else:
+                    self._monte = ShuffleSplit(
+                        n_splits=self.n_iter, test_size=self.monte_test_rate, random_state=self._rand)
+                    for _train_index, _test_index in self._monte.split(training):
+                        self.cv_training_idx.append(_train_index)
+                        self.cv_training_idx.append(_test_index)
+            else:  # classification
+                if self.cv_type == 'kfold':  # stratified
+                    self._kold = StratifiedKFold(n_splits=self.n_iter,
+                                                 shuffle=True, random_state=self._rand)
+                    for _train_index, _test_index in self._kold.split(training, training[self._y_var]):
+                        self.cv_training_idx.append(_train_index)
+                        self.cv_training_idx.append(_train_index)
+                else:  # stratified
+                    self._monte = StratifiedShuffleSplit(
+                        n_splits=self.n_iter, test_size=self.monte_test_rate, random_state=self._rand)
+                    for _train_index, _test_index in self._monte.split(training, training[self._y_var]):
+                        self.cv_training_idx.append(_train_index)
+                        self.cv_training_idx.append(_train_index)
+
+    def cvRun(self):
+        """
+        # Purpose
+            Run the CV training modelling
+
+        # Private class attributes (excluding class property)
+            _cv_training: a fold of cv training data
+            _cv_test: a fold of cv test data
+
+        """
+        # set up data
+        for _ in range(self.n_iter):
+            self._cv_training, self._cv_test = None, None
+            # TBC
 
 
 # ------ test ------
