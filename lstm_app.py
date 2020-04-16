@@ -151,19 +151,20 @@ add_arg("-n", '--n_timepoints', type=int, default=None,
 add_arg('-y', '--outcome_variable', type=str, default=None,
         help='str. Vairable name for outcome. NOTE: only needed with single file processing')
 
+add_arg('-v', '--cv_type', type=str,
+        choices=['kfold', 'LOO', 'boot'], default='kfold', help='str. Cross validation type')
+add_arg('-f', '--cv_fold', type=int, default=10,
+        help='int. Number of cross validation fold when --cv_type=\'kfold\'')
+add_arg('-nb', '--n_boot', type=int, default=10,
+        help='int. Number of bootstrap cross validation iterations when --cv_type=\'boot\'')
+add_bool_arg(parser=parser, name='cv_only', input_type='flag',
+             help='Explort a scatter plot', default=False)
 add_bool_arg(parser=parser, name='man_split', input_type='flag',
              help='Manually split data into training and test sets. When set, the split is on -s/--sample_id_var.', default=False)
 add_arg('-t', '--holdout_samples', nargs='+', type=str, default=[],
         help='str. Sample IDs selected as holdout test group when --man_split was set')
 add_arg('-p', '--training_percentage', type=float, default=0.8,
         help='num, range: 0~1. Split percentage for training set when --no-man_split is set')
-
-add_arg('-v', '--cross_validation-type', type=str,
-        choices=['kfold', 'LOO', 'boot'], default='kfold', help='str. Cross validation type')
-add_arg('-f', '--cv_fold', type=int, default=10,
-        help='int. Number fo cross validation fold when --cross_validation-type=\'kfold\'')
-add_bool_arg(parser=parser, name='cv_only', input_type='flag',
-             help='Explort a scatter plot', default=False)
 add_arg('-r', '--random_state', type=int, default=1, help='int. Random state')
 
 add_arg('-m', '--model_type', type=str, choices=['regression', 'classification'],
@@ -186,7 +187,7 @@ add_arg('-c', '--loss', type=str,
 add_arg('-g', '--optimizer', type=str,
         choices=['adam', 'sgd'], default='adam', help='str. Model optimizer.')
 add_arg('-u', '--hidden_units', type=int, default=50,
-        help='int. Number of hidden unit for the LSTM netework')
+        help='int. Number of hidden unit for the LSTM network')
 add_arg('-x', '--dropout_rate', type=float, default=0.0,
         help='float, 0.0~1.0. Dropout rate for LSTM models . 0.0 means no dropout.')
 add_bool_arg(parser=parser, name='stateful', input_type='flag', default=False,

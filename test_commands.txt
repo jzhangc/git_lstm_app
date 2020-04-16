@@ -9,4 +9,8 @@ $ test commands
 
 ./testrealm.py \
 data/v4/lstm_aec_phases_freq1_v4.csv \
--s "subject" -n 2 -y 'PCL' -a 'subject' 'PCL' 'group'
+-s "subject" -n 2 -y 'PCL' -a 'subject' 'PCL' 'group' \
+-v 'kfold' -f 10 -p 0.8 -r 1 \
+-m 'regression' -l 'simple' -x 0.02 \
+-o ./test_output
+

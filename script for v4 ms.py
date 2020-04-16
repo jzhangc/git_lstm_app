@@ -2,7 +2,8 @@
 NEW! phase1 based single timepoint to phase1-phase2 lstm analysis
 """
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
-
+from sklearn.model_selection import (KFold, LeaveOneOut, ShuffleSplit,
+                                     StratifiedKFold, StratifiedShuffleSplit)
 import math
 import os
 import datetime
@@ -28,10 +29,10 @@ from custom_functions.util_functions import logging_func
 # ------ data processing ------
 # ---- working directory
 main_dir = os.path.abspath('./')
-dat_dir = os.path.join(main_dir, 'data')
+dat_dir = os.path.join(main_dir, 'data/v4')
 
 # ---- import data
-freq = 2
+freq = 1
 # raw = pd.read_csv(os.path.join(
 #     dat_dir, 'lstm_aec_phases_freq2.csv'), engine='python')
 raw = pd.read_csv(os.path.join(
@@ -41,7 +42,7 @@ raw.iloc[0:5, 0:5]
 raw.shape
 
 # ---- key variable
-n_features = 10
+n_features = 7
 n_folds = 10
 selected_features = [['PP19', 'PN14', 'PN05'],
                      ['PN08', 'PP19', 'PN21'],
