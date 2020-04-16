@@ -431,7 +431,7 @@ class lstmModel(object):
         self.bidir_m.add(BatchNormalization())
         self.bidir_m.add(
             Dense(units=n_output, activation=self.dense_activation))
-        self.bidir_m.compile(loss=self.loss, optimizer=self.optimize, metrics=[
+        self.bidir_m.compile(loss=self.loss, optimizer=self.optimizer, metrics=[
                              'mse', 'accuracy'])
         self.m = self.bidir_m
 

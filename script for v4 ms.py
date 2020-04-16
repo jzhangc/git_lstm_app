@@ -2,8 +2,7 @@
 NEW! phase1 based single timepoint to phase1-phase2 lstm analysis
 """
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
-from sklearn.model_selection import (KFold, LeaveOneOut, ShuffleSplit,
-                                     StratifiedKFold, StratifiedShuffleSplit)
+
 import math
 import os
 import datetime
