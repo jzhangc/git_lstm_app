@@ -506,7 +506,8 @@ class cvTraining(object):
 
     # Methods
         __init__: load the CV configuration from arg parser
-        cv_splitting: calculate sub sample indices for cv according to the cv_type
+        cvSplit: calculate sub sample indices for cv according to the cv_type
+        cvRun: run the CV modelling process according to the LSTM type
     """
 
     def __init__(self, training):
@@ -535,7 +536,7 @@ class cvTraining(object):
         self._model_type = args.model_type
         self._y_var = args.outcome_variable
 
-    def cv_spliting(self, training):
+    def cvSplit(self, training):
         """
         # Public class attributes
             cv_training_idx: list of int array. sample (row) index for cv training data folds
