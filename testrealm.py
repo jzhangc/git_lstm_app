@@ -20,10 +20,12 @@ import pandas as pd
 import tensorflow as tf
 from sklearn.model_selection import (KFold, LeaveOneOut, ShuffleSplit,
                                      StratifiedKFold, StratifiedShuffleSplit)
+from sklearn.preprocessing import LabelEncoder, MinMaxScaler, StandardScaler
 from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from tensorflow.keras.layers import (LSTM, BatchNormalization, Bidirectional,
                                      Dense, Dropout)
 from tensorflow.keras.models import Sequential
+from tensorflow.keras.optimizers import SGD, Adam
 
 from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
                                            lstm_cv_train, lstm_ensemble_eval,
@@ -124,10 +126,10 @@ def add_bool_arg(parser, name, help, input_type, default=False):
 __version__ = '0.1.0'
 AUTHOR = 'Jing Zhang, PhD'
 DESCRIPITON = """
----------------------------- Description ---------------------------
-LSTM regression modelling using multiple-timpoint MEG connectome.
+---------------------------------- Description ---------------------------------
+LSTM regression/classification modelling using multiple-timpoint MEG connectome.
 Currently, the program only accepts same feature size per timepoint.
---------------------------------------------------------------------
+--------------------------------------------------------------------------------
 """
 
 
@@ -147,7 +149,7 @@ add_arg('-w', "--working_dir", type=str, default=None,
 add_arg('-s', '--sample_id_var', type=str, default=None,
         help='str. Vairable name for sample ID. NOTE: only needed with single file processing')
 add_arg('-a', '--annotation_vars', type=str, nargs="+", default=[],
-        help='names of the annotation columns in the input data. NOTE: only needed with single file processing')
+        help='list of str. names of the annotation columns in the input data, excluding the outcome variable.')
 add_arg("-n", '--n_timepoints', type=int, default=None,
         help='int. Number of timepoints. NOTE: only needed with single file processing')
 add_arg('-y', '--outcome_variable', type=str, default=None,
@@ -190,6 +192,8 @@ add_arg('-c', '--loss', type=str,
         default='mean_squared_error', help='str. Loss function for LSTM models.')
 add_arg('-g', '--optimizer', type=str,
         choices=['adam', 'sgd'], default='adam', help='str. Model optimizer.')
+add_arg('-lr', '--learning_rate', type=float, default=0.001,
+        help='foalt. Learning rate for the optimizer. Note: use 0.01 for sgd.')
 add_arg('-u', '--hidden_units', type=int, default=50,
         help='int. Number of hidden unit for the LSTM network')
 add_arg('-x', '--dropout_rate', type=float, default=0.0,
@@ -199,6 +203,9 @@ add_bool_arg(parser=parser, name='stateful', input_type='flag', default=False,
 
 add_arg('-o', '--output_dir', type=str,
         default='.', help='str. Output directory')
+
+add_bool_arg(parser=parser, name='verbose', input_type='flag', default=False,
+             help='Verbose or not')
 
 
 add_bool_arg(parser=parser, name='plot', input_type='flag',
@@ -246,24 +253,8 @@ class DataLoader(object):
         This class is designed to load the data and set up data for training LSTM models.
 
     # Methods
-        __init__: load data and other information from argparser
+        __init__: load data and other information from argparser, as well as class label encoding for classification study
         data_split: set up data for model training. No data splitting for the "CV only" mode.
-
-    # Public class attributes
-        cwd: str. working directory
-        model_type: str. model type, classification or regression
-        y_var: str. variable nanme for outcome
-        file: str. complete input file path
-        filename: str. input file name without extension
-        raw: pandas dataframe. input data
-        annot_vars: list of strings. column names for the annotation variables in the input dataframe
-        n_timepints: int. number of timepoints
-        n_features: int. number of features
-
-    # Private class attributes (excluding class property)
-        _rand: int. random state
-        _basename: str. complete file name (with extension), no path
-        _n_annot_col: int. number of annotation columns
 
     # Class property
         modelling_data: set up the data for model training. data is split if necessary.
@@ -275,6 +266,24 @@ class DataLoader(object):
     """
 
     def __init__(self):
+        """
+        # Public class attributes
+            cwd: str. working directory
+            model_type: str. model type, classification or regression
+            y_var: single str list. variable nanme for outcome
+            file: str. complete input file path
+            filename: str. input file name without extension
+            raw: pandas dataframe. input data
+            annot_vars: list of strings. column names for the annotation variables in the input dataframe
+            n_timepints: int. number of timepoints
+            n_features: int. number of features    
+            le: sklearn LabelEncoder for classification study  
+
+        # Private class attributes (excluding class properties)
+            _rand: int. random state
+            _basename: str. complete file name (with extension), no path
+            _n_annot_col: int. number of annotation columns 
+        """
         # setup working director
         if args.working_dir:
             self.cwd = args.working_dir
@@ -303,13 +312,19 @@ class DataLoader(object):
                   'Please check.')
         else:
             self.raw = pd.read_csv(self.file, engine='python')
-            self.annot_vars = args.annotation_vars
+            self.annot_vars = args.annotation_vars + self.y_var
             self._n_annot_col = len(self.annot_vars)
             self.n_timepoints = args.n_timepoints
             self.n_features = int(
                 (self.raw.shape[1] - self._n_annot_col) // self.n_timepoints)  # pd.shape[1]: ncol
 
-        self.modelling_data = args.man_split  # call setter here
+        if self.model_type == 'classification':
+            self.le = LabelEncoder()
+            self.le.fit(self.raw[self.y_var])
+            self.raw[self.y_var] = self.le.transform(self.raw[self.y_var])
+
+        # call setter here
+        self.modelling_data = args.man_split
 
     @property
     def modelling_data(self):
@@ -350,37 +365,49 @@ class lstmModel(object):
         lstm_eval: additional LSTM model evaluation
     """
 
-    def __init__(self,  model_type, n_timepoints, n_features):
+    def __init__(self, model_type, n_timepoints, n_features):
         """
         # Behaviour
             The initilizer loads model configs from arg parser 
 
         # Public class attributes
             model_type: str. model type
+            n_timepoints: int. number of timeopints (steps)
+            n_features: int. number of features per timepoint
             n_stack: int. number of LSTM stacks
             hidden_units: int. number of hidden units
             epochs: int. number of epochs
             batch_size: int. batch size
-            n_timepoints: int. number of timeopints (steps)
-            n_features: int. number of features per timepoint
             stateful: bool. if to use stateful LSTM
             dropout: float. dropout rate for LSTM
             dense_activation: str. activation function for the MLP (decision making/output DNN)
             loss: str. loss function
             optimizer: str. Optimizer type
+
+        # Private class attributions (excluding class propterties)
+            _opt: working optimizer with custom learning rate
+            _verbose
         """
         self.model_type = model_type
+        self.n_timepoints = n_timepoints
+        self.n_features = n_features
+
         self.n_stack = args.n_stack
         self.hidden_units = args.hidden_units
         self.epochs = args.epochs
         self.batch_size = args.batch
-        self.n_timepoints = n_timepoints
-        self.n_features = n_features
         self.stateful = args.stateful
         self.dropout = args.dropout_rate
         self.dense_activation = args.dense_activation
         self.loss = args.loss
+        self._verbose = args.verbose
+
+        # setup optimizer
         self.optimizer = args.optimizer
+        if self.optimizer == 'adam':
+            self._opt = Adam(lr=args.learning_rate)
+        else:
+            self._opt = SGD(lr=args.learning_rate)
 
     def simple_lstm_m(self, n_output=1):
         """
@@ -410,7 +437,7 @@ class lstmModel(object):
 
         # model compiling
         self.simple_m.compile(
-            loss=self.loss, optimizer=self.optimizer, metrics=['mse', 'accuracy'])
+            loss=self.loss, optimizer=self._opt, metrics=['mse', 'accuracy'])
         self.m = self.simple_m
 
     def bidir_lstm_m(self, n_output=1):
@@ -431,7 +458,7 @@ class lstmModel(object):
         self.bidir_m.add(BatchNormalization())
         self.bidir_m.add(
             Dense(units=n_output, activation=self.dense_activation))
-        self.bidir_m.compile(loss=self.loss, optimizer=self.optimizer, metrics=[
+        self.bidir_m.compile(loss=self.loss, optimizer=self._opt, metrics=[
                              'mse', 'accuracy'])
         self.m = self.bidir_m
 
@@ -475,7 +502,7 @@ class lstmModel(object):
         self.m_history = self.m.fit(x=self.trainX, y=self.trainY, epochs=self.epochs,
                                     batch_size=self.batch_size, callbacks=self._callbacks,
                                     validation_data=(self.testX, self.testY),
-                                    verbose=True)
+                                    verbose=False)
 
     def lstm_eval(self, newX=None, newY=None):
         """
@@ -510,37 +537,47 @@ class cvTraining(object):
         cvRun: run the CV modelling process according to the LSTM type
     """
 
-    def __init__(self, training):
+    def __init__(self, training, n_features):
         """
         # argument 
-            training: pandas dataframe. input data: row is sample.
+            training: pandas dataframe. input data: row is sample
 
         # Public class attributes
             cv_type: str. cross validation type
             n_iter: int. number of cv iterations according to cv_type
 
         # Private class attributes (excluding class property)
+            _y_var: single str list. name of the outcome variable
+            _n_features: int. number of features per timepoint
+            _verbose
 
         # Class property
         """
+        self.training = training
         self.cv_type = args.cv_type
+        self.lstm_type = args.lstm_type
+
         if self.cv_type == 'kfold':
             self.n_iter = args.cv_fold
         elif self.cv_type == 'LOO':
             self.n_iter = training.shape[0]  # number of rows/samples
         else:
             self.n_iter = args.n_monte
-
         self.monte_test_rate = args.monte_test_rate
-        self._rand = args.random_state
-        self._model_type = args.model_type
-        self._y_var = args.outcome_variable
 
-    def cvSplit(self, training):
+        self._n_features = n_features
+        self._annot_vars = args.annotation_vars  # list of strings
+        self._y_var = [args.outcome_variable]
+        self._rand = args.random_state
+
+        self._model_type = args.model_type
+        self._verbose = args.verbose
+
+    def cvSplit(self):
         """
         # Public class attributes
             cv_training_idx: list of int array. sample (row) index for cv training data folds
-            cv_training_idx: list of int array. sample (row) index for cv test data folds
+            cv_test_idx: list of int array. sample (row) index for cv test data folds
 
         # Private class attributes (excluding class property)
             _training: pandas dataframe. input training data. wit X and Y 
@@ -550,15 +587,12 @@ class cvTraining(object):
             _train_index: int array. sample (row) index for one cv training data fold
             _test_index: int array. sample (row) index for one cv test data fold
         """
-        # atrributes
-        self._training = training
-
         # spliting
         self.cv_training_idx, self.cv_training_idx = list(), list()
 
         if self.cv_type == 'LOO':  # leave one out, same for both regression and classification models
             self._loo = LeaveOneOut()
-            for _train_index, _test_index in self._loo.split(training):
+            for _train_index, _test_index in self._loo.split(self.training):
                 self.cv_training_idx.append(_train_index)
                 self.cv_training_idx.append(_test_index)
         else:
@@ -566,43 +600,94 @@ class cvTraining(object):
                 if self.cv_type == 'kfold':
                     self._kfold = KFold(n_splits=self.n_iter,
                                         shuffle=True, random_state=self._rand)
-                    for _train_index, _test_index in self._kfold.split(training):
+                    for _train_index, _test_index in self._kfold.split(self.training):
                         self.cv_training_idx.append(_train_index)
                         self.cv_training_idx.append(_test_index)
                 else:
                     self._monte = ShuffleSplit(
                         n_splits=self.n_iter, test_size=self.monte_test_rate, random_state=self._rand)
-                    for _train_index, _test_index in self._monte.split(training):
+                    for _train_index, _test_index in self._monte.split(self.training):
                         self.cv_training_idx.append(_train_index)
                         self.cv_training_idx.append(_test_index)
             else:  # classification
                 if self.cv_type == 'kfold':  # stratified
                     self._kold = StratifiedKFold(n_splits=self.n_iter,
                                                  shuffle=True, random_state=self._rand)
-                    for _train_index, _test_index in self._kold.split(training, training[self._y_var]):
+                    for _train_index, _test_index in self._kold.split(self.training, self.training[self._y_var]):
                         self.cv_training_idx.append(_train_index)
                         self.cv_training_idx.append(_train_index)
                 else:  # stratified
                     self._monte = StratifiedShuffleSplit(
                         n_splits=self.n_iter, test_size=self.monte_test_rate, random_state=self._rand)
-                    for _train_index, _test_index in self._monte.split(training, training[self._y_var]):
+                    for _train_index, _test_index in self._monte.split(self.training, self.training[self._y_var]):
                         self.cv_training_idx.append(_train_index)
                         self.cv_training_idx.append(_train_index)
 
-    def cvRun(self):
+    def cvRun(self, model_type, log_dir=None):
         """
         # Purpose
             Run the CV training modelling
+
+        # Public class attributes
+            le: sklearn LabelEncoder. Classification modelling only 
 
         # Private class attributes (excluding class property)
             _cv_training: a fold of cv training data
             _cv_test: a fold of cv test data
 
         """
+        # set up model
+        self._model_type = model_type
+
         # set up data
-        for _ in range(self.n_iter):
-            self._cv_training, self._cv_test = None, None
-            # TBC
+        self.cv_m_ensemble, self.cv_m_history_ensemble = list(), list()
+        self.cv_test_accuracy_ensemble, self.cv_test_rmse_ensemble = list(), list()
+        for i in range(self.n_iter):
+            iter_id = str(i+1)
+            if self._verbose:
+                print('cv iteration: ', iter_id)
+            # below: .copy for pd dataframe makes an explicit copy, avoiding Pandas SettingWithCopyWarning
+            self._cv_training, self._cv_test = self.training.iloc[self.cv_training_idx[i],
+                                                                  :].copy(), self.training.iloc[self.cv_training_idx[i], :].copy()
+
+            # x standardization
+            self._cv_train_scaler_X = StandardScaler()
+            self._cv_training[self._cv_training.columns[~self._cv_training.columns.isin(self._annot_vars)]] = self._cv_train_scaler_X.fit_transform(
+                self._cv_training[self._cv_training.columns[~self._cv_training.columns.isin(self._annot_vars)]])
+            self._cv_test[self._cv_test.columns[~self._cv_test.columns.isin(self._annot_vars)]] = self._cv_train_scaler_X.transform(
+                self._cv_test[self._cv_test.columns[~self._cv_test.columns.isin(self._annot_vars)]])
+
+            # process outcome variable
+            if self._model_type == 'regression':
+                self._cv_train_scaler_Y = MinMaxScaler(feature_range=(0, 1))
+                self._cv_training[self._cv_training.columns[self._cv_training.columns.isin(self._y_var)]] = self._cv_train_scaler_Y.fit_transform(
+                    self._cv_training[self._cv_training.columns[self._cv_training.columns.isin(self._y_var)]])
+                self._cv_test[self._cv_test.columns[self._cv_test.columns.isin(self._y_var)]] = self._cv_train_scaler_Y.fit_transform(
+                    self._cv_test[self._cv_test.columns[self._cv_test.columns.isin(self._y_var)]])
+
+            # convert data to np arrays
+            self._cv_train_x, self._cv_train_y = longitudinal_cv_xy_array(input=self._cv_training, Y_colnames=self._y_var,
+                                                                          remove_colnames=self._annot_vars, n_features=self._n_features)
+            self._cv_test_x, self._cv_test_y = longitudinal_cv_xy_array(input=self._cv_test, Y_colnames=self._y_var,
+                                                                        remove_colnames=self._annot_vars, n_features=self._n_features)
+
+            # training
+            cv_lstm = lstmModel(model_type=args.model_type,
+                                n_timepoints=args.n_timepoints, n_features=self._n_features)
+
+            if self.lstm_type == "simple":
+                cv_lstm.simple_lstm_m()
+            else:
+                cv_lstm.bidir_lstm_m()
+            cv_lstm.lstm_fit(trainX=self._cv_training, trainY=self._cv_train_y,
+                             testX=self._cv_test_x, testY=self._cv_test_y, log_dir=log_dir)
+            cv_lstm.lstm_eval(newX=self._cv_test_x, newY=self._cv_test_y)
+
+            # saving and exporting
+            self.cv_m_ensemble.append(cv_lstm.m)
+            self.cv_m_history_ensemble.append(cv_lstm.m_history)
+            self.cv_test_accuracy_ensemble.append(cv_lstm.accuracy)
+            self.cv_test_rmse_ensemble.append(cv_lstm.rmse)
 
 
 # ------ test ------

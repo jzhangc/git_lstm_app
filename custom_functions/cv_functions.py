@@ -329,7 +329,7 @@ def longitudinal_cv_xy_array(input, Y_colnames, remove_colnames, n_features):
     # Arguments:
         input: input 2D pandas DataFrame
         Y_colnames: column names for Y array. has to be a list
-        remove_colnames: column to remove to generate X array. has to be a list
+        remove_colnames: column to remove to generate X array, excluding Y_colnames. has to be a list
         n_features: the number of features used for each timepoint
 
     # Details:
