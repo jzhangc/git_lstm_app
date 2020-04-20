@@ -768,7 +768,7 @@ class cvTraining(object):
         for i in range(self.n_iter):
             iter_id = str(i+1)
             if self._verbose:
-                print('cv iteration: ', iter_id)
+                print('cv iteration: ', iter_id, '...', end=' ')
             # below: .copy for pd dataframe makes an explicit copy, avoiding Pandas SettingWithCopyWarning
             self._cv_training, self._cv_test = self.training.iloc[self.cv_training_idx[i],
                                                                   :].copy(), self.training.iloc[self.cv_training_idx[i], :].copy()
@@ -795,8 +795,10 @@ class cvTraining(object):
                                                                         remove_colnames=self._annotation_vars, n_features=self._n_features)
 
             # training
-            # below: make sure to have all the arguments
-            cv_lstm = lstmModel(*args, **kwargs)
+            # below: make sure to have all the argumetns ready
+            cv_lstm = lstmModel(model_type=self._model_type,
+                                n_features=self._n_features,
+                                *args, **kwargs)
 
             if self.lstm_type == "simple":
                 cv_lstm.simple_lstm_m()
@@ -814,6 +816,10 @@ class cvTraining(object):
             self.cv_m_history_ensemble.append(cv_lstm.m_history)
             self.cv_test_accuracy_ensemble.append(cv_lstm.accuracy)
             self.cv_test_rmse_ensemble.append(cv_lstm.rmse)
+
+            # verbose
+            if self._verbose:
+                print("done!")
 
 
 # ------ local variables ------
