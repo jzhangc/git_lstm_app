@@ -14,4 +14,3 @@ data/v4/lstm_aec_phases_freq1_v4.csv \
 -m 'regression' -l 'simple' -x 0.02 \
 -o ./test_output \
 --verbose
-

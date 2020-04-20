@@ -338,6 +338,9 @@ class DataLoader(object):
         self.filename,  self._name_ext = os.path.splitext(self._basename)[
             0], os.path.splitext(self._basename)[1]
 
+        if self.verbose:
+            print('Loading file: ', self._basename, '...', end=' ')
+
         if self._name_ext != ".csv":
             error('The input file should be in csv format.',
                   'Please check.')
@@ -357,13 +360,20 @@ class DataLoader(object):
             self.holdout_samples = holdout_samples
             self.training_percentage = training_percentage
 
+        if self.verbose:
+            print('done!')
+
         if self.model_type == 'classification':
             self.le = LabelEncoder()
             self.le.fit(self.raw[self.y_var])
             self.raw[self.y_var] = self.le.transform(self.raw[self.y_var])
 
         # call setter here
+        if self.verbose:
+            print('Setting up modelling data...', end=' ')
         self.modelling_data = man_split
+        if self.verbose:
+            print('done!')
 
     @property
     def modelling_data(self):
@@ -391,201 +401,201 @@ class DataLoader(object):
             'training': self._training, 'test': self._test}
 
 
-class lstmModel(object):
-    """
-    # Purpose
-        Simple or stacked LSTM modelling class
+# class lstmModel(object):
+#     """
+#     # Purpose
+#         Simple or stacked LSTM modelling class
 
-    # Details
-        This class uses the custom error() function. So be sure to load it.
+#     # Details
+#         This class uses the custom error() function. So be sure to load it.
 
-    # Methods
-        __init__: load data and other information from DataLoader class and argparser
-        simple_lstm_m: setup simple or stacked LSTM model and compile
-        bidir_lstm_m: setup bidirectional LSTM model and compile
-        lstm_fit: LSTM model fitting
-        lstm_eval: additional LSTM model evaluation
-    """
+#     # Methods
+#         __init__: load data and other information from DataLoader class and argparser
+#         simple_lstm_m: setup simple or stacked LSTM model and compile
+#         bidir_lstm_m: setup bidirectional LSTM model and compile
+#         lstm_fit: LSTM model fitting
+#         lstm_eval: additional LSTM model evaluation
+#     """
 
-    def __init__(self, model_type, n_timepoints, n_features,
-                 n_stack, hidden_units, epochs, batch_size, stateful, dropout, dense_activation,
-                 loss, optimizer, learning_rate, verbose):
-        """
-        # Behaviour
-            The initilizer loads model configs
+#     def __init__(self, model_type, n_timepoints, n_features,
+#                  n_stack, hidden_units, epochs, batch_size, stateful, dropout, dense_activation,
+#                  loss, optimizer, learning_rate, verbose):
+#         """
+#         # Behaviour
+#             The initilizer loads model configs
 
-        # Arguments
-            model_type: str. model type, "classification" or "regression". "args.model_type" from argparser, or DataLoader.model_type
-            n_timepoints: int. number of timeopints (steps). "n_timepoint" from argparser, or DataLoader.n_timepoint
-            n_features: int. number of features per timepoint. could be from the DataLoader class attribute DataLoader.n_features
-            n_stack: int. number of (simple) LSTM stacks. "args.n_stack" from argparser
-            hidden_units: int. number of hidden units. "args.hidden_units" from argparser
-            epochs: int. number of epochs. "args.epochs" from argparser
-            batch_size: int. batch size. "args.batch" from argparser
-            stateful: bool. if to use stateful LSTM. "args.stateful" from argparser
-            dropout: float. dropout rate for LSTM. "args.dropout_rate" from argparser
-            dense_activation: str. activation function for the MLP (decision making/output DNN). "args.dense_activation" from argparser
-            loss: str. loss function. "args.loss" from argparser
-            optimizer: str. optimizer. "args.optimizer" from argparser
-            learning_rate: float. leanring rate for optimizer . "args.learning_rate" from argparser
-            verbose: str. Optimizer type. "args.verbose" from argparser, or DataLoader.verbose. But it is recommneded to set it separately
+#         # Arguments
+#             model_type: str. model type, "classification" or "regression". "args.model_type" from argparser, or DataLoader.model_type
+#             n_timepoints: int. number of timeopints (steps). "n_timepoint" from argparser, or DataLoader.n_timepoints
+#             n_features: int. number of features per timepoint. could be from the DataLoader class attribute DataLoader.n_features
+#             n_stack: int. number of (simple) LSTM stacks. "args.n_stack" from argparser
+#             hidden_units: int. number of hidden units. "args.hidden_units" from argparser
+#             epochs: int. number of epochs. "args.epochs" from argparser
+#             batch_size: int. batch size. "args.batch" from argparser
+#             stateful: bool. if to use stateful LSTM. "args.stateful" from argparser
+#             dropout: float. dropout rate for LSTM. "args.dropout_rate" from argparser
+#             dense_activation: str. activation function for the MLP (decision making/output DNN). "args.dense_activation" from argparser
+#             loss: str. loss function. "args.loss" from argparser
+#             optimizer: str. optimizer. "args.optimizer" from argparser
+#             learning_rate: float. leanring rate for optimizer . "args.learning_rate" from argparser
+#             verbose: str. Optimizer type. "args.verbose" from argparser, or DataLoader.verbose. But it is recommneded to set it separately
 
-        # Public class attributes
-            Below: attributes read from arguments
-                self.model_type
-                self.n_timepoints
-                self.n_features
-                self.n_stack
-                self.hidden_units
-                self.epochs
-                self.batch_size
-                self.stateful
-                self.dropout
-                self.dense_activation
-                self.loss
-                self.optimizer
-                self.lr: learning rate 
+#         # Public class attributes
+#             Below: attributes read from arguments
+#                 self.model_type
+#                 self.n_timepoints
+#                 self.n_features
+#                 self.n_stack
+#                 self.hidden_units
+#                 self.epochs
+#                 self.batch_size
+#                 self.stateful
+#                 self.dropout
+#                 self.dense_activation
+#                 self.loss
+#                 self.optimizer
+#                 self.lr: learning rate
 
-        # Private class attributes (excluding class propterties)
-            Below: private attributes read from arguments 
-                self._verbose
+#         # Private class attributes (excluding class propterties)
+#             Below: private attributes read from arguments
+#                 self._verbose
 
-            self._opt: working optimizer with custom learning rate
-        """
-        self.model_type = model_type
-        self.n_timepoints = n_timepoints
-        self.n_features = n_features
+#             self._opt: working optimizer with custom learning rate
+#         """
+#         self.model_type = model_type
+#         self.n_timepoints = n_timepoints
+#         self.n_features = n_features
 
-        self.n_stack = n_stack
-        self.hidden_units = hidden_units
-        self.epochs = epochs
-        self.batch_size = batch_size
-        self.stateful = stateful
-        self.dropout = dropout
-        self.dense_activation = dense_activation
-        self.loss = loss
-        self._verbose = verbose
-        self.lr = learning_rate
+#         self.n_stack = n_stack
+#         self.hidden_units = hidden_units
+#         self.epochs = epochs
+#         self.batch_size = batch_size
+#         self.stateful = stateful
+#         self.dropout = dropout
+#         self.dense_activation = dense_activation
+#         self.loss = loss
+#         self._verbose = verbose
+#         self.lr = learning_rate
 
-        # setup optimizer
-        self.optimizer = optimizer
-        if self.optimizer == 'adam':
-            self._opt = Adam(lr=self.lr)
-        else:
-            self._opt = SGD(lr=self.lr)
+#         # setup optimizer
+#         self.optimizer = optimizer
+#         if self.optimizer == 'adam':
+#             self._opt = Adam(lr=self.lr)
+#         else:
+#             self._opt = SGD(lr=self.lr)
 
-    def simple_lstm_m(self, n_output=1):
-        """
-        # Behaviour
-            This method uses dropout and batch normalization
+#     def simple_lstm_m(self, n_output=1):
+#         """
+#         # Behaviour
+#             This method uses dropout and batch normalization
 
-        # Public class attributes
-            simple_m: simple or stacked LSTM model
-            m: the final LSTM model
-        """
-        # model setup
-        self.simple_m = Sequential()
-        if self.n_stack > 1:  # if to use stacked LSTM or not
-            self.simple_m.add(LSTM(units=self.hidden_units, return_sequences=True,
-                                   input_shape=(
-                                       self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout))
-            self.simple_m.add(BatchNormalization())
-            for _ in range(self.n_stack):
-                self.simple_m.add(LSTM(units=self.hidden_units))
-                self.simple_m.add(BatchNormalization())
-        else:
-            self.simple_m.add(LSTM(units=self.hidden_units, input_shape=(
-                self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout))
-            self.simple_m.add(BatchNormalization())
-        self.simple_m.add(
-            Dense(units=n_output, activation=self.dense_activation))
+#         # Public class attributes
+#             simple_m: simple or stacked LSTM model
+#             m: the final LSTM model
+#         """
+#         # model setup
+#         self.simple_m = Sequential()
+#         if self.n_stack > 1:  # if to use stacked LSTM or not
+#             self.simple_m.add(LSTM(units=self.hidden_units, return_sequences=True,
+#                                    input_shape=(
+#                                        self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout))
+#             self.simple_m.add(BatchNormalization())
+#             for _ in range(self.n_stack):
+#                 self.simple_m.add(LSTM(units=self.hidden_units))
+#                 self.simple_m.add(BatchNormalization())
+#         else:
+#             self.simple_m.add(LSTM(units=self.hidden_units, input_shape=(
+#                 self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout))
+#             self.simple_m.add(BatchNormalization())
+#         self.simple_m.add(
+#             Dense(units=n_output, activation=self.dense_activation))
 
-        # model compiling
-        self.simple_m.compile(
-            loss=self.loss, optimizer=self._opt, metrics=['mse', 'accuracy'])
-        self.m = self.simple_m
+#         # model compiling
+#         self.simple_m.compile(
+#             loss=self.loss, optimizer=self._opt, metrics=['mse', 'accuracy'])
+#         self.m = self.simple_m
 
-    def bidir_lstm_m(self, n_output=1):
-        """
-        # Behaviour
-            This method uses dropout and batch normalization
+#     def bidir_lstm_m(self, n_output=1):
+#         """
+#         # Behaviour
+#             This method uses dropout and batch normalization
 
-        # Public class attributes
-            bidir_m: bidirectional LSTM model
-            m: the final LSTM model
-            m_history: model history with metrices etc
-        """
-        # model setup
-        self.bidir_m = Sequential()
-        self.bidir_m.add(Bidirectional(LSTM(units=self.hidden_units, return_sequences=True,
-                                            input_shape=(
-                                                self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout)))
-        self.bidir_m.add(BatchNormalization())
-        self.bidir_m.add(
-            Dense(units=n_output, activation=self.dense_activation))
-        self.bidir_m.compile(loss=self.loss, optimizer=self._opt, metrics=[
-                             'mse', 'accuracy'])
-        self.m = self.bidir_m
+#         # Public class attributes
+#             bidir_m: bidirectional LSTM model
+#             m: the final LSTM model
+#             m_history: model history with metrices etc
+#         """
+#         # model setup
+#         self.bidir_m = Sequential()
+#         self.bidir_m.add(Bidirectional(LSTM(units=self.hidden_units, return_sequences=True,
+#                                             input_shape=(
+#                                                 self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout)))
+#         self.bidir_m.add(BatchNormalization())
+#         self.bidir_m.add(
+#             Dense(units=n_output, activation=self.dense_activation))
+#         self.bidir_m.compile(loss=self.loss, optimizer=self._opt, metrics=[
+#                              'mse', 'accuracy'])
+#         self.m = self.bidir_m
 
-    def lstm_fit(self, trainX, trainY, testX, testY, log_dir=None):
-        """
-        # Arguments
-            trainX: numpy ndarray for training X. shape requirment: n_samples x n_timepoints x n_features
-            trainY: numpy ndarray for training Y. shape requirement: n_samples
-            testX: numpy ndarray for test X. shape requirment: n_samples x n_timepoints x n_features
-            testY: numpy ndarray for test Y. shape requirement: n_samples
-            log_dir: str. path to output tensorboard results. It is opitonal
+#     def lstm_fit(self, trainX, trainY, testX, testY, log_dir=None):
+#         """
+#         # Arguments
+#             trainX: numpy ndarray for training X. shape requirment: n_samples x n_timepoints x n_features
+#             trainY: numpy ndarray for training Y. shape requirement: n_samples
+#             testX: numpy ndarray for test X. shape requirment: n_samples x n_timepoints x n_features
+#             testY: numpy ndarray for test Y. shape requirement: n_samples
+#             log_dir: str. path to output tensorboard results. It is opitonal
 
-        # Public class attributes
-            trainX: numpy ndarray for training X. shape requirment: n_samples x n_timepoints x n_features
-            trainY: numpy ndarray for training Y. shape requirement: n_samples
-            testX: numpy ndarray for test X. shape requirment: n_samples x n_timepoints x n_features
-            testY: numpy ndarray for test Y. shape requirement: n_samples
+#         # Public class attributes
+#             trainX: numpy ndarray for training X. shape requirment: n_samples x n_timepoints x n_features
+#             trainY: numpy ndarray for training Y. shape requirement: n_samples
+#             testX: numpy ndarray for test X. shape requirment: n_samples x n_timepoints x n_features
+#             testY: numpy ndarray for test Y. shape requirement: n_samples
 
-        # Private class attributes (excluding class property)
-            _earlystop_callback: early stop callback
-            _tfboard_callback: tensorboard callback
-            _callbacks: list. a list of callbacks for model fitting
-        """
-        # data
-        self.trainX = trainX
-        self.trainY = trainY
-        self.testX = testX
-        self.testY = testY
+#         # Private class attributes (excluding class property)
+#             _earlystop_callback: early stop callback
+#             _tfboard_callback: tensorboard callback
+#             _callbacks: list. a list of callbacks for model fitting
+#         """
+#         # data
+#         self.trainX = trainX
+#         self.trainY = trainY
+#         self.testX = testX
+#         self.testY = testY
 
-        # callbakcs
-        self._earlystop_callback = EarlyStopping(
-            monitor='val_loss', patience=5)
-        if log_dir:
-            self._tfboard_callback = TensorBoard(log_dir=log_dir)
-            self._callbacks = [
-                self._earlystop_callback, self._tfboard_callback]
-        else:
-            self._callbacks = [self._earlystop_callback]
+#         # callbakcs
+#         self._earlystop_callback = EarlyStopping(
+#             monitor='val_loss', patience=5)
+#         if log_dir:
+#             self._tfboard_callback = TensorBoard(log_dir=log_dir)
+#             self._callbacks = [
+#                 self._earlystop_callback, self._tfboard_callback]
+#         else:
+#             self._callbacks = [self._earlystop_callback]
 
-        # fitting
-        self.m_history = self.m.fit(x=self.trainX, y=self.trainY, epochs=self.epochs,
-                                    batch_size=self.batch_size, callbacks=self._callbacks,
-                                    validation_data=(self.testX, self.testY),
-                                    verbose=self._verbose)
+#         # fitting
+#         self.m_history = self.m.fit(x=self.trainX, y=self.trainY, epochs=self.epochs,
+#                                     batch_size=self.batch_size, callbacks=self._callbacks,
+#                                     validation_data=(self.testX, self.testY),
+#                                     verbose=self._verbose)
 
-    def lstm_eval(self, newX=None, newY=None):
-        """
-        # Purpose
-            Evalutate model performance with new data
+#     def lstm_eval(self, newX=None, newY=None):
+#         """
+#         # Purpose
+#             Evalutate model performance with new data
 
-        # Arguments
-            newX: numpy ndarray for new data X. shape requirment: n_samples x n_timepoints x n_features
-            newY: numpy ndarray for new data Y. shape requirement: n_samples
-        """
-        # evaluate
-        if self.model_type == 'regression':
-            self._mse = self.m.evaluate(newX, newY, verbose=True)
-            self.accuracy = None
-        else:
-            self._mse, self.accuracy = self.m.evaluate(
-                newX, newY, verbose=True)
-        self.rmse = math.sqrt(self._mse)
+#         # Arguments
+#             newX: numpy ndarray for new data X. shape requirment: n_samples x n_timepoints x n_features
+#             newY: numpy ndarray for new data Y. shape requirement: n_samples
+#         """
+#         # evaluate
+#         if self.model_type == 'regression':
+#             self._mse = self.m.evaluate(newX, newY, verbose=True)
+#             self.accuracy = None
+#         else:
+#             self._mse, self.accuracy = self.m.evaluate(
+#                 newX, newY, verbose=True)
+#         self.rmse = math.sqrt(self._mse)
 
 
 class cvTraining(object):
@@ -602,14 +612,16 @@ class cvTraining(object):
         cvRun: run the CV modelling process according to the LSTM type
     """
 
-    def __init__(self, training, n_features, lstm_type,
+    def __init__(self, training, n_timepints, n_features,
+                 lstm_type,
                  cv_type, cv_fold, n_monte, monte_test_rate,
                  model_type, outcome_var, annotation_vars,
                  random_state, verbose):
         """
         # argument
             training: pandas dataframe. input data: row is sample
-            n_features: int. number of features per timepoint. could be from the DataLoader class attribute DataLoader.n_features attribute
+            n_timepints: int. number of timepoints. "args.n_timepoints" from argparser, or DataLoader.n_timepoints attribute
+            n_features: int. number of features per timepoint. could be from DataLoader.n_features attribute
             lstm_type: str. lstm type. "args.lstm_type" from argparser
             cv_type: str. cross validation type. "args.cv_type" from argparser
             cv_fold: int. number of fold when cv_type="LOO" or "kfold". "args.cv_fold" from argparser
@@ -634,13 +646,14 @@ class cvTraining(object):
             Below are private attribute(s) read from arguments
                 self._outcome_var
                 self._annoation_vars
+                self._n_timepoints
                 self._n_features
                 self._rand
                 self._model_type
                 self._verbose
 
             self._y_var: single str list. name of the outcome variable
-            self._complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe, INDCLUDING outcome varaible. 
+            self._complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe, INDCLUDING outcome varaible.
             self._verbose
         """
         self.training = training
@@ -655,6 +668,7 @@ class cvTraining(object):
             self.n_iter = n_monte
             self.monte_test_rate = monte_test_rate
 
+        self._n_timepoints = n_timepints
         self._n_features = n_features
         self._outcome_var = outcome_var
         self._annotation_vars = annotation_vars  # list of strings
@@ -680,6 +694,9 @@ class cvTraining(object):
             _test_index: int array. sample (row) index for one cv test data fold
         """
         # spliting
+        if self._verbose:
+            print('Setting up data for cross validation...', end=' ')
+
         self.cv_training_idx, self.cv_training_idx = list(), list()
 
         if self.cv_type == 'LOO':  # leave one out, same for both regression and classification models
@@ -715,111 +732,114 @@ class cvTraining(object):
                         self.cv_training_idx.append(_train_index)
                         self.cv_training_idx.append(_train_index)
 
-    def cvRun(self, working_dir, output_dir, *args, **kwargs):
-        """
-        # Purpose
-            Run the CV training modelling. This class is less portable, as it is tied to the lstmModel class.
-
-        # Arguments
-            working_dir: str. working directory. "args.working_dir" from argparser, or DataLoader.cwd attribute
-            output_dir: str. output directory. "args.output_dir" from argparser
-
-            Below:
-
-        # Public class attributes
-            self.cv_m_ensemble
-            self.cv_m_history_ensemble
-            self.cv_test_accuracy_ensemble
-            self.cv_test_rmse_ensemble
-
-        # Private class attributes (excluding class property)
-            below: private attributes read from arguments
-                self._working_dir
-                self._output_dir
-
-            self._res_dir: str. working_dir + output_dir
-            self._cv_training: a fold of cv training data
-            self._cv_test: a fold of cv test data
-
-        """
-        # check and set up output path
         if self._verbose:
-            print("Set up results directory...", end=' ')
-        self._wd = working_dir
-        self._output_dir = output_dir
-        self._res_dir = os.path.join(self._wd, self._output_dir)
+            print('done!')
 
-        if not os.path.exists(self._res_dir):  # set up out path
-            os.mkdir(self._res_dir)
-        else:
-            self._res_dir = self._res_dir + "_" + datetime.now().strftime("%Y%m%d-%H%M%S")
-            os.mkdir(self._res_dir)
+    # def cvRun(self, working_dir, output_dir, *args, **kwargs):
+    #     """
+    #     # Purpose
+    #         Run the CV training modelling. This class is less portable, as it is tied to the lstmModel class.
 
-        self._tfborad_dir = os.path.join(
-            self._res_dir, 'tensorboard_res')  # set up tf board path
-        # below: no need to check as self._res_dir is new for sure
-        os.mkdir(self._tfborad_dir)
-        if self._verbose:
-            print('Done!')
+    #     # Arguments
+    #         working_dir: str. working directory. "args.working_dir" from argparser, or DataLoader.cwd attribute
+    #         output_dir: str. output directory. "args.output_dir" from argparser
 
-        # set up data
-        self.cv_m_ensemble, self.cv_m_history_ensemble = list(), list()
-        self.cv_test_accuracy_ensemble, self.cv_test_rmse_ensemble = list(), list()
-        for i in range(self.n_iter):
-            iter_id = str(i+1)
-            if self._verbose:
-                print('cv iteration: ', iter_id, '...', end=' ')
-            # below: .copy for pd dataframe makes an explicit copy, avoiding Pandas SettingWithCopyWarning
-            self._cv_training, self._cv_test = self.training.iloc[self.cv_training_idx[i],
-                                                                  :].copy(), self.training.iloc[self.cv_training_idx[i], :].copy()
+    #         Below:
 
-            # x standardization
-            self._cv_train_scaler_X = StandardScaler()
-            self._cv_training[self._cv_training.columns[~self._cv_training.columns.isin(self._complete_annot_vars)]] = self._cv_train_scaler_X.fit_transform(
-                self._cv_training[self._cv_training.columns[~self._cv_training.columns.isin(self._complete_annot_vars)]])
-            self._cv_test[self._cv_test.columns[~self._cv_test.columns.isin(self._complete_annot_vars)]] = self._cv_train_scaler_X.transform(
-                self._cv_test[self._cv_test.columns[~self._cv_test.columns.isin(self._complete_annot_vars)]])
+    #     # Public class attributes
+    #         self.cv_m_ensemble
+    #         self.cv_m_history_ensemble
+    #         self.cv_test_accuracy_ensemble
+    #         self.cv_test_rmse_ensemble
 
-            # process outcome variable
-            if self._model_type == 'regression':
-                self._cv_train_scaler_Y = MinMaxScaler(feature_range=(0, 1))
-                self._cv_training[self._cv_training.columns[self._cv_training.columns.isin(self._y_var)]] = self._cv_train_scaler_Y.fit_transform(
-                    self._cv_training[self._cv_training.columns[self._cv_training.columns.isin(self._y_var)]])
-                self._cv_test[self._cv_test.columns[self._cv_test.columns.isin(self._y_var)]] = self._cv_train_scaler_Y.fit_transform(
-                    self._cv_test[self._cv_test.columns[self._cv_test.columns.isin(self._y_var)]])
+    #     # Private class attributes (excluding class property)
+    #         below: private attributes read from arguments
+    #             self._working_dir
+    #             self._output_dir
 
-            # convert data to np arrays
-            self._cv_train_x, self._cv_train_y = longitudinal_cv_xy_array(input=self._cv_training, Y_colnames=self._y_var,
-                                                                          remove_colnames=self._annotation_vars, n_features=self._n_features)
-            self._cv_test_x, self._cv_test_y = longitudinal_cv_xy_array(input=self._cv_test, Y_colnames=self._y_var,
-                                                                        remove_colnames=self._annotation_vars, n_features=self._n_features)
+    #         self._res_dir: str. working_dir + output_dir
+    #         self._cv_training: a fold of cv training data
+    #         self._cv_test: a fold of cv test data
 
-            # training
-            # below: make sure to have all the argumetns ready
-            cv_lstm = lstmModel(model_type=self._model_type,
-                                n_features=self._n_features,
-                                *args, **kwargs)
+    #     """
+    #     # check and set up output path
+    #     if self._verbose:
+    #         print("Set up results directory...", end=' ')
+    #     self._wd = working_dir
+    #     self._output_dir = output_dir
+    #     self._res_dir = os.path.join(self._wd, self._output_dir)
 
-            if self.lstm_type == "simple":
-                cv_lstm.simple_lstm_m()
-            else:  # stacked
-                cv_lstm.bidir_lstm_m()
+    #     if not os.path.exists(self._res_dir):  # set up out path
+    #         os.mkdir(self._res_dir)
+    #     else:
+    #         self._res_dir = self._res_dir + "_" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    #         os.mkdir(self._res_dir)
 
-            cv_lstm.lstm_fit(trainX=self._cv_training, trainY=self._cv_train_y,
-                             testX=self._cv_test_x, testY=self._cv_test_y, log_dir=os.path.join(self._tfborad_dir, 'cv_iter_'+iter_id))
-            cv_lstm.lstm_eval(newX=self._cv_test_x, newY=self._cv_test_y)
+    #     self._tfborad_dir = os.path.join(
+    #         self._res_dir, 'tensorboard_res')  # set up tf board path
+    #     # below: no need to check as self._res_dir is new for sure
+    #     os.mkdir(self._tfborad_dir)
+    #     if self._verbose:
+    #         print('Done!')
 
-            # saving and exporting
-            cv_lstm.m.save(os.path.join(
-                self._res_dir, 'lstm_cv_model_'+'iter_'+str(i+1)+'.h5'))
-            self.cv_m_ensemble.append(cv_lstm.m)
-            self.cv_m_history_ensemble.append(cv_lstm.m_history)
-            self.cv_test_accuracy_ensemble.append(cv_lstm.accuracy)
-            self.cv_test_rmse_ensemble.append(cv_lstm.rmse)
+    #     # set up data
+    #     self.cv_m_ensemble, self.cv_m_history_ensemble = list(), list()
+    #     self.cv_test_accuracy_ensemble, self.cv_test_rmse_ensemble = list(), list()
+    #     for i in range(self.n_iter):
+    #         iter_id = str(i+1)
+    #         if self._verbose:
+    #             print('cv iteration: ', iter_id, '...', end=' ')
+    #         # below: .copy for pd dataframe makes an explicit copy, avoiding Pandas SettingWithCopyWarning
+    #         self._cv_training, self._cv_test = self.training.iloc[self.cv_training_idx[i],
+    #                                                               :].copy(), self.training.iloc[self.cv_training_idx[i], :].copy()
 
-            # verbose
-            if self._verbose:
-                print("done!")
+    #         # x standardization
+    #         self._cv_train_scaler_X = StandardScaler()
+    #         self._cv_training[self._cv_training.columns[~self._cv_training.columns.isin(self._complete_annot_vars)]] = self._cv_train_scaler_X.fit_transform(
+    #             self._cv_training[self._cv_training.columns[~self._cv_training.columns.isin(self._complete_annot_vars)]])
+    #         self._cv_test[self._cv_test.columns[~self._cv_test.columns.isin(self._complete_annot_vars)]] = self._cv_train_scaler_X.transform(
+    #             self._cv_test[self._cv_test.columns[~self._cv_test.columns.isin(self._complete_annot_vars)]])
+
+    #         # process outcome variable
+    #         if self._model_type == 'regression':
+    #             self._cv_train_scaler_Y = MinMaxScaler(feature_range=(0, 1))
+    #             self._cv_training[self._cv_training.columns[self._cv_training.columns.isin(self._y_var)]] = self._cv_train_scaler_Y.fit_transform(
+    #                 self._cv_training[self._cv_training.columns[self._cv_training.columns.isin(self._y_var)]])
+    #             self._cv_test[self._cv_test.columns[self._cv_test.columns.isin(self._y_var)]] = self._cv_train_scaler_Y.fit_transform(
+    #                 self._cv_test[self._cv_test.columns[self._cv_test.columns.isin(self._y_var)]])
+
+    #         # convert data to np arrays
+    #         self._cv_train_x, self._cv_train_y = longitudinal_cv_xy_array(input=self._cv_training, Y_colnames=self._y_var,
+    #                                                                       remove_colnames=self._annotation_vars, n_features=self._n_features)
+    #         self._cv_test_x, self._cv_test_y = longitudinal_cv_xy_array(input=self._cv_test, Y_colnames=self._y_var,
+    #                                                                     remove_colnames=self._annotation_vars, n_features=self._n_features)
+
+    #         # training
+    #         # below: make sure to have all the argumetns ready
+    #         cv_lstm = lstmModel(model_type=self._model_type,
+    #                             n_features=self._n_features,
+    #                             *args, **kwargs)
+
+    #         if self.lstm_type == "simple":
+    #             cv_lstm.simple_lstm_m()
+    #         else:  # stacked
+    #             cv_lstm.bidir_lstm_m()
+
+    #         cv_lstm.lstm_fit(trainX=self._cv_training, trainY=self._cv_train_y,
+    #                          testX=self._cv_test_x, testY=self._cv_test_y, log_dir=os.path.join(self._tfborad_dir, 'cv_iter_'+iter_id))
+    #         cv_lstm.lstm_eval(newX=self._cv_test_x, newY=self._cv_test_y)
+
+    #         # saving and exporting
+    #         cv_lstm.m.save(os.path.join(
+    #             self._res_dir, 'lstm_cv_model_'+'iter_'+str(i+1)+'.h5'))
+    #         self.cv_m_ensemble.append(cv_lstm.m)
+    #         self.cv_m_history_ensemble.append(cv_lstm.m_history)
+    #         self.cv_test_accuracy_ensemble.append(cv_lstm.accuracy)
+    #         self.cv_test_rmse_ensemble.append(cv_lstm.rmse)
+
+    #         # verbose
+    #         if self._verbose:
+    #             print("done!")
 
 
 # ------ local variables ------
@@ -840,17 +860,26 @@ mydata = DataLoader(
     model_type=args.model_type, cv_only=args.cv_only,
     man_split=args.man_split, holdout_samples=args.holdout_samples, training_percentage=args.training_percentage,
     random_state=args.random_state, verbose=args.verbose)
-print(mydata.raw)
-print("\n")
-print("input file path: {}".format(mydata.file))
-print("\n")
-print("input file name: {}".format(mydata.filename))
-print("\n")
-print("number of timepoints in the input file: {}".format(mydata.n_timepoints))
-print("\n")
-print("number of features in the inpout file: {}".format(mydata.n_features))
 
-print(mydata.modelling_data['training'])
+
+mycv = cvTraining(training=mydata.modelling_data['training'],
+                  n_timepints=mydata.n_timepoints, n_features=mydata.n_features,
+                  lstm_type=args.lstm_type, cv_type=args.cv_type, cv_fold=args.cv_fold, n_monte=args.n_monte,
+                  monte_test_rate=args.monte_test_rate, model_type=mydata.model_type,
+                  outcome_var=mydata.outcome_var, annotation_vars=mydata.annotation_vars, random_state=mydata.rand,
+                  verbose=mydata.verbose)
+
+# print(mydata.raw)
+# print("\n")
+# print("input file path: {}".format(mydata.file))
+# print("\n")
+# print("input file name: {}".format(mydata.filename))
+# print("\n")
+# print("number of timepoints in the input file: {}".format(mydata.n_timepoints))
+# print("\n")
+# print("number of features in the inpout file: {}".format(mydata.n_features))
+
+# print(mydata.modelling_data['training'])
 
 # ------ process/__main__ statement ------
 # ------ setup output folders ------

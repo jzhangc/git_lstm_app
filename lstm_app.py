@@ -338,6 +338,9 @@ class DataLoader(object):
         self.filename,  self._name_ext = os.path.splitext(self._basename)[
             0], os.path.splitext(self._basename)[1]
 
+        if self.verbose:
+            print('Loading file: ', self._basename, '...', end=' ')
+
         if self._name_ext != ".csv":
             error('The input file should be in csv format.',
                   'Please check.')
@@ -357,13 +360,20 @@ class DataLoader(object):
             self.holdout_samples = holdout_samples
             self.training_percentage = training_percentage
 
+        if self.verbose:
+            print('done!')
+
         if self.model_type == 'classification':
             self.le = LabelEncoder()
             self.le.fit(self.raw[self.y_var])
             self.raw[self.y_var] = self.le.transform(self.raw[self.y_var])
 
         # call setter here
+        if self.verbose:
+            print('Setting up modelling data...', end=' ')
         self.modelling_data = man_split
+        if self.verbose:
+            print('done!')
 
     @property
     def modelling_data(self):
@@ -416,7 +426,7 @@ class lstmModel(object):
 
         # Arguments
             model_type: str. model type, "classification" or "regression". "args.model_type" from argparser, or DataLoader.model_type
-            n_timepoints: int. number of timeopints (steps). "n_timepoint" from argparser, or DataLoader.n_timepoint
+            n_timepoints: int. number of timeopints (steps). "n_timepoint" from argparser, or DataLoader.n_timepoints
             n_features: int. number of features per timepoint. could be from the DataLoader class attribute DataLoader.n_features
             n_stack: int. number of (simple) LSTM stacks. "args.n_stack" from argparser
             hidden_units: int. number of hidden units. "args.hidden_units" from argparser
@@ -444,10 +454,10 @@ class lstmModel(object):
                 self.dense_activation
                 self.loss
                 self.optimizer
-                self.lr: learning rate 
+                self.lr: learning rate
 
         # Private class attributes (excluding class propterties)
-            Below: private attributes read from arguments 
+            Below: private attributes read from arguments
                 self._verbose
 
             self._opt: working optimizer with custom learning rate
@@ -602,14 +612,16 @@ class cvTraining(object):
         cvRun: run the CV modelling process according to the LSTM type
     """
 
-    def __init__(self, training, n_features, lstm_type,
+    def __init__(self, training, n_timepints, n_features,
+                 lstm_type,
                  cv_type, cv_fold, n_monte, monte_test_rate,
                  model_type, outcome_var, annotation_vars,
                  random_state, verbose):
         """
         # argument
             training: pandas dataframe. input data: row is sample
-            n_features: int. number of features per timepoint. could be from the DataLoader class attribute DataLoader.n_features attribute
+            n_timepints: int. number of timepoints. "args.n_timepoints" from argparser, or DataLoader.n_timepoints attribute
+            n_features: int. number of features per timepoint. could be from DataLoader.n_features attribute
             lstm_type: str. lstm type. "args.lstm_type" from argparser
             cv_type: str. cross validation type. "args.cv_type" from argparser
             cv_fold: int. number of fold when cv_type="LOO" or "kfold". "args.cv_fold" from argparser
@@ -634,13 +646,14 @@ class cvTraining(object):
             Below are private attribute(s) read from arguments
                 self._outcome_var
                 self._annoation_vars
+                self._n_timepoints
                 self._n_features
                 self._rand
                 self._model_type
                 self._verbose
 
             self._y_var: single str list. name of the outcome variable
-            self._complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe, INDCLUDING outcome varaible. 
+            self._complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe, INDCLUDING outcome varaible.
             self._verbose
         """
         self.training = training
@@ -655,6 +668,7 @@ class cvTraining(object):
             self.n_iter = n_monte
             self.monte_test_rate = monte_test_rate
 
+        self._n_timepoints = n_timepints
         self._n_features = n_features
         self._outcome_var = outcome_var
         self._annotation_vars = annotation_vars  # list of strings
@@ -680,6 +694,9 @@ class cvTraining(object):
             _test_index: int array. sample (row) index for one cv test data fold
         """
         # spliting
+        if self._verbose:
+            print('Setting up data for cross validation...', end=' ')
+
         self.cv_training_idx, self.cv_training_idx = list(), list()
 
         if self.cv_type == 'LOO':  # leave one out, same for both regression and classification models
@@ -714,6 +731,9 @@ class cvTraining(object):
                     for _train_index, _test_index in self._monte.split(self.training, self.training[self._y_var]):
                         self.cv_training_idx.append(_train_index)
                         self.cv_training_idx.append(_train_index)
+
+        if self._verbose:
+            print('done!')
 
     def cvRun(self, working_dir, output_dir, *args, **kwargs):
         """
@@ -840,17 +860,26 @@ mydata = DataLoader(
     model_type=args.model_type, cv_only=args.cv_only,
     man_split=args.man_split, holdout_samples=args.holdout_samples, training_percentage=args.training_percentage,
     random_state=args.random_state, verbose=args.verbose)
-print(mydata.raw)
-print("\n")
-print("input file path: {}".format(mydata.file))
-print("\n")
-print("input file name: {}".format(mydata.filename))
-print("\n")
-print("number of timepoints in the input file: {}".format(mydata.n_timepoints))
-print("\n")
-print("number of features in the inpout file: {}".format(mydata.n_features))
 
-print(mydata.modelling_data['training'])
+
+mycv = cvTraining(training=mydata.modelling_data['training'],
+                  n_timepints=mydata.n_timepoints, n_features=mydata.n_features,
+                  lstm_type=args.lstm_type, cv_type=args.cv_type, cv_fold=args.cv_fold, n_monte=args.n_monte,
+                  monte_test_rate=args.monte_test_rate, model_type=mydata.model_type,
+                  outcome_var=mydata.outcome_var, annotation_vars=mydata.annotation_vars, random_state=mydata.rand,
+                  verbose=mydata.verbose)
+
+# print(mydata.raw)
+# print("\n")
+# print("input file path: {}".format(mydata.file))
+# print("\n")
+# print("input file name: {}".format(mydata.filename))
+# print("\n")
+# print("number of timepoints in the input file: {}".format(mydata.n_timepoints))
+# print("\n")
+# print("number of features in the inpout file: {}".format(mydata.n_features))
+
+# print(mydata.modelling_data['training'])
 
 # ------ process/__main__ statement ------
 # ------ setup output folders ------
