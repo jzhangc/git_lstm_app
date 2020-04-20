@@ -290,6 +290,8 @@ class DataLoader(object):
         else:
             self.cwd = os.getcwd()
 
+        self.output_dir = args.output_dir
+
         # random state
         self._rand = args.random_state
 
@@ -623,19 +625,28 @@ class cvTraining(object):
                         self.cv_training_idx.append(_train_index)
                         self.cv_training_idx.append(_train_index)
 
-    def cvRun(self, model_type, log_dir=None):
+    def cvRun(self, model_type, output_dir):
         """
         # Purpose
             Run the CV training modelling
 
         # Public class attributes
-            le: sklearn LabelEncoder. Classification modelling only 
+            cv_m_ensemble
+            cv_m_history_ensemble
+            cv_test_accuracy_ensemble
+            cv_test_rmse_ensemble
 
         # Private class attributes (excluding class property)
             _cv_training: a fold of cv training data
             _cv_test: a fold of cv test data
+            _model_type
+            _res_dir
 
         """
+        # set up output path
+        # [TBC]
+        self._res_dir = None
+
         # set up model
         self._model_type = model_type
 
@@ -677,13 +688,16 @@ class cvTraining(object):
 
             if self.lstm_type == "simple":
                 cv_lstm.simple_lstm_m()
-            else:
+            else:  # stacked
                 cv_lstm.bidir_lstm_m()
             cv_lstm.lstm_fit(trainX=self._cv_training, trainY=self._cv_train_y,
-                             testX=self._cv_test_x, testY=self._cv_test_y, log_dir=log_dir)
+                             testX=self._cv_test_x, testY=self._cv_test_y, log_dir=os.path.join(
+                                 self._res_dir, 'tensorboard_res', 'cv_iter_'+iter_id))
             cv_lstm.lstm_eval(newX=self._cv_test_x, newY=self._cv_test_y)
 
             # saving and exporting
+            cv_lstm.m.save(os.path.join(
+                self._res_dir, 'lstm_cv_model_'+'iter_'+str(i+1)+'.h5'))
             self.cv_m_ensemble.append(cv_lstm.m)
             self.cv_m_history_ensemble.append(cv_lstm.m_history)
             self.cv_test_accuracy_ensemble.append(cv_lstm.accuracy)
