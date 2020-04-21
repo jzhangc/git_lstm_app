@@ -165,7 +165,7 @@ add_arg('-y', '--outcome_var', type=str, default=None,
 
 add_arg('-v', '--cv_type', type=str,
         choices=['kfold', 'LOO', 'monte'], default='kfold', help='str. Cross validation type')
-add_arg('-f', '--cv_fold', type=int, default=10,
+add_arg('-kf', '--cv_fold', type=int, default=10,
         help='int. Number of cross validation fold when --cv_type=\'kfold\'')
 add_arg('-mn', '--n_monte', type=int, default=10,
         help='int. Number of Monte Carlo cross validation iterations when --cv_type=\'monte\'')
@@ -262,15 +262,11 @@ class DataLoader(object):
 
     # Methods
         __init__: load data and other information from argparser, as well as class label encoding for classification study
-        data_split: set up data for model training. No data splitting for the "CV only" mode.
 
     # Class property
-        modelling_data: set up the data for model training. data is split if necessary.
+        modelling_data: dict. data for model training. data is split if necessary.
+            No data splitting for the "CV only" mode.
             returns a dict object with 'training' and 'test' items
-
-            _m_data: dict. output dictionary
-            _training: pandas dataframe. data for model training.
-            _test: pandas dataframe. holdout test data. Only available without the "--cv_only" flag
     """
 
     def __init__(self, cwd, file, outcome_var, annotation_vars, n_timepoints, sample_id_var,
@@ -312,7 +308,8 @@ class DataLoader(object):
             self.raw: pandas dataframe. input data
             self.complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe, INDCLUDING outcome varaible
             self.n_features: int. number of features    
-            self.le: sklearn LabelEncoder for classification study  
+            self.le: sklearn LabelEncoder for classification study
+            self.label_mapping: dict. Class label mapping codes, when model_type='classification'  
 
         # Private class attributes (excluding class properties)
             self._basename: str. complete file name (with extension), no path
@@ -365,8 +362,15 @@ class DataLoader(object):
 
         if self.model_type == 'classification':
             self.le = LabelEncoder()
-            self.le.fit(self.raw[self.y_var])
-            self.raw[self.y_var] = self.le.transform(self.raw[self.y_var])
+            self.le.fit(self.raw[self.outcome_var])
+            self.raw[self.outcome_var] = self.le.transform(
+                self.raw[self.outcome_var])
+            self.label_mapping = dict(
+                zip(self.le.classes_, self.le.transform(self.le.classes_)))
+            if self.verbose:
+                print('Class label encoding: ')
+                for i in self.label_mapping.items():
+                    print('{}: {}'.format(i[0], i[1]))
 
         # call setter here
         if self.verbose:
@@ -382,6 +386,12 @@ class DataLoader(object):
 
     @modelling_data.setter
     def modelling_data(self, man_split):
+        """
+        Private attributes for the property
+            _m_data: dict. output dictionary
+            _training: pandas dataframe. data for model training.
+            _test: pandas dataframe. holdout test data. Only available without the "--cv_only" flag    
+        """
         # print("called setter") # for debugging
         if self.cv_only:  # only training is stored
             self._training, self._test = self.raw, None
@@ -608,8 +618,10 @@ class cvTraining(object):
 
     # Methods
         __init__: load the CV configuration from arg parser
-        cvSplit: calculate sub sample indices for cv according to the cv_type
         cvRun: run the CV modelling process according to the LSTM type
+
+    # Class property
+        cvSplitIdx: dict. Sample indices (row number) of training and test sets split for cross validation
     """
 
     def __init__(self, training, n_timepints, n_features,
@@ -679,58 +691,69 @@ class cvTraining(object):
         self._model_type = model_type
         self._verbose = verbose
 
-    def cvSplit(self):
-        """
-        # Public class attributes
-            cv_training_idx: list of int array. sample (row) index for cv training data folds
-            cv_test_idx: list of int array. sample (row) index for cv test data folds
+        # property
+        self.cvSplitIdx = self.cv_type
 
-        # Private class attributes (excluding class property)
+    @property
+    def cvSplitIdx(self):
+        return self._cvSplitIdx
+
+    @cvSplitIdx.setter
+    def cvSplitIdx(self, cv_type):
+        """
+        # Private class attributes for the property
             _training: pandas dataframe. input training data. wit X and Y
             _kfold: sklearn.KFold/sklearn.StratifiedKFold object if cv_type='kfold', according to the model type
             _loo: sklearn.LeaveOneOut object if cv_type='LOO'
             _monte: sklearn.ShuffleSplit/sklearn.StratifiedShuffleSplit object if cv_type='monte', according to the model type
             _train_index: int array. sample (row) index for one cv training data fold
             _test_index: int array. sample (row) index for one cv test data fold
+            _cv_training_idx: list of int array. sample (row) index for cv training data folds
+            _cv_test_idx: list of int array. sample (row) index for cv test data folds
         """
         # spliting
         if self._verbose:
+            print('Cross validationo type: {}'.format(self.cv_type))
             print('Setting up data for cross validation...', end=' ')
 
-        self.cv_training_idx, self.cv_training_idx = list(), list()
+        self._cv_training_idx, self._cv_test_idx = list(), list()
 
-        if self.cv_type == 'LOO':  # leave one out, same for both regression and classification models
+        if cv_type == 'LOO':  # leave one out, same for both regression and classification models
             self._loo = LeaveOneOut()
             for _train_index, _test_index in self._loo.split(self.training):
-                self.cv_training_idx.append(_train_index)
-                self.cv_training_idx.append(_test_index)
+                self._cv_training_idx.append(_train_index)
+                self._cv_test_idx.append(_test_index)
         else:
             if self._model_type == 'regression':
-                if self.cv_type == 'kfold':
+                if cv_type == 'kfold':
                     self._kfold = KFold(n_splits=self.n_iter,
                                         shuffle=True, random_state=self._rand)
                     for _train_index, _test_index in self._kfold.split(self.training):
-                        self.cv_training_idx.append(_train_index)
-                        self.cv_training_idx.append(_test_index)
+                        self._cv_training_idx.append(_train_index)
+                        self._cv_test_idx.append(_test_index)
                 else:
                     self._monte = ShuffleSplit(
                         n_splits=self.n_iter, test_size=self.monte_test_rate, random_state=self._rand)
                     for _train_index, _test_index in self._monte.split(self.training):
-                        self.cv_training_idx.append(_train_index)
-                        self.cv_training_idx.append(_test_index)
+                        self._cv_training_idx.append(_train_index)
+                        self._cv_test_idx.append(_test_index)
             else:  # classification
-                if self.cv_type == 'kfold':  # stratified
+                if cv_type == 'kfold':  # stratified
                     self._kold = StratifiedKFold(n_splits=self.n_iter,
                                                  shuffle=True, random_state=self._rand)
                     for _train_index, _test_index in self._kold.split(self.training, self.training[self._y_var]):
-                        self.cv_training_idx.append(_train_index)
-                        self.cv_training_idx.append(_train_index)
+                        self._cv_training_idx.append(_train_index)
+                        self._cv_test_idx.append(_test_index)
                 else:  # stratified
                     self._monte = StratifiedShuffleSplit(
                         n_splits=self.n_iter, test_size=self.monte_test_rate, random_state=self._rand)
                     for _train_index, _test_index in self._monte.split(self.training, self.training[self._y_var]):
-                        self.cv_training_idx.append(_train_index)
-                        self.cv_training_idx.append(_train_index)
+                        self._cv_training_idx.append(_train_index)
+                        self._cv_test_idx.append(_test_index)
+
+        # output
+        self._cvSplitIdx = {
+            'cv_training_idx': self._cv_training_idx, 'cv_test_idx': self._cv_test_idx}
 
         if self._verbose:
             print('done!')
@@ -790,8 +813,8 @@ class cvTraining(object):
             if self._verbose:
                 print('cv iteration: ', iter_id, '...', end=' ')
             # below: .copy for pd dataframe makes an explicit copy, avoiding Pandas SettingWithCopyWarning
-            self._cv_training, self._cv_test = self.training.iloc[self.cv_training_idx[i],
-                                                                  :].copy(), self.training.iloc[self.cv_training_idx[i], :].copy()
+            self._cv_training, self._cv_test = self.training.iloc[self.cvSplitIdx['cv_training_idx'][i],
+                                                                  :].copy(), self.training.iloc[self.cvSplitIdx['cv_test_idx'][i], :].copy()
 
             # x standardization
             self._cv_train_scaler_X = StandardScaler()
@@ -849,10 +872,7 @@ else:
     cwd = os.getcwd()
 
 # ------ test ------
-print(args)
-print('\n')
-print(os.path.exists(args.file[0]))
-
+# print(args)
 mydata = DataLoader(
     cwd=cwd, file=args.file[0],
     outcome_var=args.outcome_var, annotation_vars=args.annotation_vars,
@@ -861,6 +881,14 @@ mydata = DataLoader(
     man_split=args.man_split, holdout_samples=args.holdout_samples, training_percentage=args.training_percentage,
     random_state=args.random_state, verbose=args.verbose)
 
+print('\n')
+print('input file path: {}'.format(mydata.file))
+print('\n')
+print('input file name: {}'.format(mydata.filename))
+print('\n')
+print('number of timepoints in the input file: {}'.format(mydata.n_timepoints))
+print('\n')
+print('number of features in the inpout file: {}'.format(mydata.n_features))
 
 mycv = cvTraining(training=mydata.modelling_data['training'],
                   n_timepints=mydata.n_timepoints, n_features=mydata.n_features,
@@ -869,17 +897,16 @@ mycv = cvTraining(training=mydata.modelling_data['training'],
                   outcome_var=mydata.outcome_var, annotation_vars=mydata.annotation_vars, random_state=mydata.rand,
                   verbose=mydata.verbose)
 
-# print(mydata.raw)
-# print("\n")
-# print("input file path: {}".format(mydata.file))
-# print("\n")
-# print("input file name: {}".format(mydata.filename))
-# print("\n")
-# print("number of timepoints in the input file: {}".format(mydata.n_timepoints))
-# print("\n")
-# print("number of features in the inpout file: {}".format(mydata.n_features))
+print('\n')
+print('CV indices for training:\n{}'.format(
+    mycv.cvSplitIdx['cv_training_idx']))
+print('\n')
+print('CV indices for test:\n{}'.format(mycv.cvSplitIdx['cv_test_idx']))
 
-# print(mydata.modelling_data['training'])
+print('training data for cv (iteration: 1):\n{}'.format(
+    mydata.modelling_data['training'].iloc[mycv.cvSplitIdx['cv_training_idx'][0], :]))
+print('test data for cv (iteration: 1):\n{}'.format(
+    mydata.modelling_data['training'].iloc[mycv.cvSplitIdx['cv_test_idx'][0], :]))
 
 # ------ process/__main__ statement ------
 # ------ setup output folders ------
