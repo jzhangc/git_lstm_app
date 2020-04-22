@@ -9,9 +9,24 @@ $ test commands
 
 ./testrealm.py \
 data/v4/lstm_aec_phases_freq1_v4.csv \
--s "subject" -n 2 -y 'group' -a 'subject' 'PCL' 'group' \
+-s "subject" -n 2 -y 'PCL' -a 'subject' 'group' \
+-v 'monte' -kf 10 -mn 10 -mt 0.2 \
+-p 0.8 -r 1 \
+-m 'regression' -l 'simple' -x 0.02 \
+-g 'adam' -lr 0.001 \
+-u 50 -e 150 -b 26 -d 'linear' -c 'mean_squared_error' \
+-b 20 \
+-o ./results/test_output --verbose
+
+
+
+./testrealm.py \
+data/v4/lstm_aec_phases_freq1_v4.csv \
+-s "subject" -n 2 -y 'group' -a 'subject' 'PCL' \
 -v 'monte' -kf 10 -mn 10 -mt 0.2 \
 -p 0.8 -r 1 \
 -m 'classification' -l 'simple' -x 0.02 \
--o ./test_output \
---verbose
+-g 'sgd' -lr 0.01 \
+-u 50 -e 150 -b 26 -d 'linear' -c 'binary_crossentropy' \
+-b 20 \
+-o ./results/test_output --verbose

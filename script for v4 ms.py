@@ -131,6 +131,11 @@ for i in range(n_folds):
     cv_test_rmse_ensemble.append(cv_m_test_rmse)
     cv_test_rsq_ensemble.append(cv_m_test_rsq)
 
+
+eval_res = cv_m.evaluate(cv_test_X, cv_test_Y)
+eval_res = math.sqrt(eval_res)
+
+
 # --- CV evaluation ---
 cv_rmse_mean = np.mean(cv_test_rmse_ensemble)
 cv_rmse_sd = np.std(cv_test_rmse_ensemble)

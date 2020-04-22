@@ -9,7 +9,9 @@ Current objectives:
 [X] 6. Folder setup
 [ ] 7. Save models and data
 [ ] 8. Diplay messages
-[X] 9. Code cleanup, generalization and optimization
+[ ] 9. Test and debug for the classification module
+[X] 10. Code cleanup, generalization and optimization
+
 
 NOTE
 All the argparser inputs are loaded from method arguments, making the class more portable, i.e. not tied to
@@ -30,6 +32,8 @@ import tensorflow as tf
 from sklearn.model_selection import (KFold, LeaveOneOut, ShuffleSplit,
                                      StratifiedKFold, StratifiedShuffleSplit)
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, StandardScaler
+from sklearn.metrics import mean_squared_error
+
 from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from tensorflow.keras.layers import (LSTM, BatchNormalization, Bidirectional,
                                      Dense, Dropout)
@@ -43,7 +47,6 @@ from custom_functions.data_processing import training_test_spliter_final
 
 # from tensorflow.keras.callbacks import History  # for input argument type check
 # from matplotlib import pyplot as plt
-# from sklearn.metrics import accuracy_score, mean_squared_error, r2_score
 # # StratifiedKFold should be used for classification problems
 # # StratifiedKFold makes sure the fold has an equal representation of the classes
 # from sklearn.model_selection import KFold
@@ -198,14 +201,14 @@ add_arg('-c', '--loss', type=str,
         choices=['mean_squared_error', 'binary_crossentropy',
                  'categorical_crossentropy', 'sparse_categorical_crossentropy', 'hinge'],
         default='mean_squared_error', help='str. Loss function for LSTM models.')
-add_arg('-g', '--optimizer', type=str,
-        choices=['adam', 'sgd'], default='adam', help='str. Model optimizer.')
-add_arg('-lr', '--learning_rate', type=float, default=0.001,
-        help='foalt. Learning rate for the optimizer. Note: use 0.01 for sgd.')
 add_arg('-u', '--hidden_units', type=int, default=50,
         help='int. Number of hidden unit for the LSTM network')
 add_arg('-x', '--dropout_rate', type=float, default=0.0,
         help='float, 0.0~1.0. Dropout rate for LSTM models . 0.0 means no dropout.')
+add_arg('-g', '--optimizer', type=str,
+        choices=['adam', 'sgd'], default='adam', help='str. Model optimizer.')
+add_arg('-lr', '--learning_rate', type=float, default=0.001,
+        help='foalt. Learning rate for the optimizer. Note: use 0.01 for sgd.')
 add_bool_arg(parser=parser, name='stateful', input_type='flag', default=False,
              help="Use stateful LSTM for modelling.")
 
@@ -507,15 +510,20 @@ class lstmModel(object):
         self.simple_m = Sequential()
         if self.n_stack > 1:  # if to use stacked LSTM or not
             self.simple_m.add(LSTM(units=self.hidden_units, return_sequences=True,
+                                   batch_size=self.batch_size,
                                    input_shape=(
-                                       self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout))
+                                       self.n_timepoints, self.n_features),
+                                   stateful=self.stateful, dropout=self.dropout))
             self.simple_m.add(BatchNormalization())
             for _ in range(self.n_stack):
                 self.simple_m.add(LSTM(units=self.hidden_units))
                 self.simple_m.add(BatchNormalization())
         else:
-            self.simple_m.add(LSTM(units=self.hidden_units, input_shape=(
-                self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout))
+            self.simple_m.add(LSTM(units=self.hidden_units,
+                                   batch_size=self.batch_size,
+                                   input_shape=(self.n_timepoints,
+                                                self.n_features),
+                                   stateful=self.stateful, dropout=self.dropout))
             self.simple_m.add(BatchNormalization())
         self.simple_m.add(
             Dense(units=n_output, activation=self.dense_activation))
@@ -538,6 +546,7 @@ class lstmModel(object):
         # model setup
         self.bidir_m = Sequential()
         self.bidir_m.add(Bidirectional(LSTM(units=self.hidden_units, return_sequences=True,
+                                            batch_size=self.batch_size,
                                             input_shape=(
                                                 self.n_timepoints, self.n_features), stateful=self.stateful, dropout=self.dropout)))
         self.bidir_m.add(BatchNormalization())
@@ -589,7 +598,7 @@ class lstmModel(object):
                                     validation_data=(self.testX, self.testY),
                                     verbose=self._verbose)
 
-    def lstm_eval(self, newX=None, newY=None):
+    def lstm_eval(self, newX=None, newY=None, y_scaler=None):
         """
         # Purpose
             Evalutate model performance with new data
@@ -599,12 +608,22 @@ class lstmModel(object):
             newY: numpy ndarray for new data Y. shape requirement: n_samples
         """
         # evaluate
+
+        self.yhat = self.m.predict(newX)
         if self.model_type == 'regression':
-            self._mse = self.m.evaluate(newX, newY, verbose=True)
+            if y_scaler:
+                self.yhat_inversed = y_scaler.inverse_transform(self.yhat)
+                self.newY_inversed = y_scaler.inverse_transform(newY)
+                self._mse = mean_squared_error(
+                    y_true=self.newY_inversed, y_pred=self.yhat_inversed)
+            else:
+                self._mse = self.m.evaluate(newX, newY, verbose=False)[
+                    1]  # eval output (list): [loss, mse, accu]
             self.accuracy = None
-        else:
+        else:  # below: need to debug
             self._mse, self.accuracy = self.m.evaluate(
                 newX, newY, verbose=True)
+
         self.rmse = math.sqrt(self._mse)
 
 
@@ -625,21 +644,21 @@ class cvTraining(object):
     """
 
     def __init__(self, training, n_timepints, n_features,
-                 lstm_type,
+                 model_type, lstm_type,
                  cv_type, cv_fold, n_monte, monte_test_rate,
-                 model_type, outcome_var, annotation_vars,
+                 outcome_var, annotation_vars,
                  random_state, verbose):
         """
         # argument
             training: pandas dataframe. input data: row is sample
             n_timepints: int. number of timepoints. "args.n_timepoints" from argparser, or DataLoader.n_timepoints attribute
             n_features: int. number of features per timepoint. could be from DataLoader.n_features attribute
+            model_type: str. model type, "classification" or "regression". "args.model_type" from argparser, or DataLoader.model_type attribute
             lstm_type: str. lstm type. "args.lstm_type" from argparser
             cv_type: str. cross validation type. "args.cv_type" from argparser
             cv_fold: int. number of fold when cv_type="LOO" or "kfold". "args.cv_fold" from argparser
             n_monte: int. number of Monte Carlo iteratins when cv_type="monte". "args.n_monte" from argparser
             monte_test_rate: float, between 0 and 1. resampling percentage for test set when cv_type="monte"
-            model_type: str. model type, "classification" or "regression". "args.model_type" from argparser, or DataLoader.model_type attribute
             outcome_var: str. variable nanme for outcome. Only one is accepted for this version. "args.outcome_var" from argparser, or DataLoader.outcome_var
             annotation_vars: list of strings. Column names for the annotation variables in the input dataframe, EXCLUDING outcome variable.
                 "args.annotation_vars" from argparser, or DataLoader.annotation_vars attribute
@@ -848,7 +867,7 @@ class cvTraining(object):
             else:  # stacked
                 cv_lstm.bidir_lstm_m()
 
-            cv_lstm.lstm_fit(trainX=self._cv_training, trainY=self._cv_train_y,
+            cv_lstm.lstm_fit(trainX=self._cv_train_x, trainY=self._cv_train_y,
                              testX=self._cv_test_x, testY=self._cv_test_y, log_dir=os.path.join(self._tfborad_dir, 'cv_iter_'+iter_id))
             cv_lstm.lstm_eval(newX=self._cv_test_x, newY=self._cv_test_y)
 
@@ -881,14 +900,13 @@ mydata = DataLoader(
     man_split=args.man_split, holdout_samples=args.holdout_samples, training_percentage=args.training_percentage,
     random_state=args.random_state, verbose=args.verbose)
 
-print('\n')
-print('input file path: {}'.format(mydata.file))
+# print('\n')
+# print('input file path: {}'.format(mydata.file))
 print('\n')
 print('input file name: {}'.format(mydata.filename))
-print('\n')
 print('number of timepoints in the input file: {}'.format(mydata.n_timepoints))
-print('\n')
 print('number of features in the inpout file: {}'.format(mydata.n_features))
+
 
 mycv = cvTraining(training=mydata.modelling_data['training'],
                   n_timepints=mydata.n_timepoints, n_features=mydata.n_features,
@@ -900,13 +918,47 @@ mycv = cvTraining(training=mydata.modelling_data['training'],
 print('\n')
 print('CV indices for training:\n{}'.format(
     mycv.cvSplitIdx['cv_training_idx']))
-print('\n')
 print('CV indices for test:\n{}'.format(mycv.cvSplitIdx['cv_test_idx']))
+print('\n\r')
+print('Working directory: {}'.format(cwd))
 
-print('training data for cv (iteration: 1):\n{}'.format(
-    mydata.modelling_data['training'].iloc[mycv.cvSplitIdx['cv_training_idx'][0], :]))
-print('test data for cv (iteration: 1):\n{}'.format(
-    mydata.modelling_data['training'].iloc[mycv.cvSplitIdx['cv_test_idx'][0], :]))
+# # below: single round lstm modelling test
+# mylstm = lstmModel(n_timepoints=mydata.n_timepoints,
+#                    model_type=mydata.model_type, n_features=mydata.n_features,
+#                    n_stack=args.n_stack, hidden_units=args.hidden_units, epochs=args.epochs,
+#                    batch_size=args.batch_size, stateful=args.stateful, dropout=args.dropout_rate,
+#                    dense_activation=args.dense_activation, loss=args.loss,
+#                    optimizer=args.optimizer, learning_rate=args.learning_rate, verbose=True)
+
+# train = mydata.modelling_data['training']
+# cv_training, cv_test = train.iloc[mycv.cvSplitIdx['cv_training_idx'][0],
+#                                   :].copy(), train.iloc[mycv.cvSplitIdx['cv_test_idx'][0], :].copy()
+# cv_train_x, cv_train_y = longitudinal_cv_xy_array(input=cv_training, Y_colnames=mydata.y_var,
+#                                                   remove_colnames=mydata.annotation_vars, n_features=mydata.n_features)
+# cv_test_x, cv_test_y = longitudinal_cv_xy_array(input=cv_test, Y_colnames=mydata.y_var,
+#                                                 remove_colnames=mydata.annotation_vars, n_features=mydata.n_features)
+
+# mylstm.simple_lstm_m()
+# mylstm.lstm_fit(trainX=cv_train_x, trainY=cv_train_y,
+#                 testX=cv_test_x, testY=cv_test_y)
+
+
+# mse = mylstm.m.evaluate(cv_test_x, cv_test_y)[1]
+
+# print(mse)
+
+# rmse = math.sqrt(mse)
+# print('rmse: {}'.format(rmse))
+
+mycv.cvRun(working_dir=cwd, output_dir=args.output_dir,
+           n_timepoints=mydata.n_timepoints,
+           n_stack=args.n_stack, hidden_units=args.hidden_units, epochs=args.epochs,
+           batch_size=args.batch_size, stateful=args.stateful, dropout=args.dropout_rate,
+           dense_activation=args.dense_activation, loss=args.loss,
+           optimizer=args.optimizer, learning_rate=args.learning_rate, verbose=True)
+
+for i in range(len(mycv.cv_test_rmse_ensemble)):
+    print('iter: ', i+1, 'RMSE: {}'.format(mycv.cv_test_rmse_ensemble[i]))
 
 # ------ process/__main__ statement ------
 # ------ setup output folders ------
