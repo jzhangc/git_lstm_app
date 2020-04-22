@@ -9,9 +9,10 @@ Current objectives:
 [X] 6. Folder setup
 [ ] 7. Save models and data
 [ ] 8. Diplay messages
-[ ] 9. Test and debug for the classification module
-[X] 10. Code cleanup, generalization and optimization
-
+[X] 9. Test and debug for the classification module
+[ ] 10. Load and use the existing models
+[ ] 11. ROC-AUC for CV and production modelling classes for classification models
+[X] 12. Code cleanup, generalization and optimization
 
 NOTE
 All the argparser inputs are loaded from method arguments, making the class more portable, i.e. not tied to
@@ -155,69 +156,76 @@ add_arg = parser.add_argument
 add_arg('file', nargs=1, default=[],
         help='Input CSV file. Currently only one file is accepable.')
 add_arg('-w', "--working_dir", type=str, default=None,
-        help='str. Working directory if not the current one')
+        help='str. Working directory if not the current one. Default is None.')
 
 add_arg('-s', '--sample_id_var', type=str, default=None,
-        help='str. Vairable name for sample ID. NOTE: only needed with single file processing')
+        help='str. Vairable name for sample ID. NOTE: only needed with single file processing. Default is None.')
 add_arg('-a', '--annotation_vars', type=str, nargs="+", default=[],
-        help='list of str. names of the annotation columns in the input data, excluding the outcome variable.')
+        help='list of str. names of the annotation columns in the input data, excluding the outcome variable. Default is [].')
 add_arg("-n", '--n_timepoints', type=int, default=None,
-        help='int. Number of timepoints. NOTE: only needed with single file processing')
+        help='int. Number of timepoints. NOTE: only needed with single file processing. Default is None.')
 add_arg('-y', '--outcome_var', type=str, default=None,
-        help='str. Vairable name for outcome. NOTE: only needed with single file processing')
+        help='str. Vairable name for outcome. NOTE: only needed with single file processing. Default is None.')
+add_bool_arg(parser=parser, name='y_scale', input_type='flag', default=False,
+             help='str. If to min-max scale outcome for regression study. Defatuls is False.')
 
 add_arg('-v', '--cv_type', type=str,
-        choices=['kfold', 'LOO', 'monte'], default='kfold', help='str. Cross validation type')
+        choices=['kfold', 'LOO', 'monte'], default='kfold',
+        help='str. Cross validation type. Default is \'kfold\'')
 add_arg('-kf', '--cv_fold', type=int, default=10,
-        help='int. Number of cross validation fold when --cv_type=\'kfold\'')
+        help='int. Number of cross validation fold when --cv_type=\'kfold\'. Default is 10.')
 add_arg('-mn', '--n_monte', type=int, default=10,
-        help='int. Number of Monte Carlo cross validation iterations when --cv_type=\'monte\'')
+        help='int. Number of Monte Carlo cross validation iterations when --cv_type=\'monte\'. Default is 10')
 add_arg('-mt', '--monte_test_rate', type=float, default=0.2,
-        help='float. Ratio for cv test data split when --cv_type=\'monte\'')
+        help='float. Ratio for cv test data split when --cv_type=\'monte\'. Default is 0.2.')
 add_bool_arg(parser=parser, name='cv_only', input_type='flag',
-             help='Explort a scatter plot', default=False)
+             help='If to do cv_only mode for training, i.e. no holdout test split. Default is False.',
+             default=False)
 add_bool_arg(parser=parser, name='man_split', input_type='flag',
-             help='Manually split data into training and test sets. When set, the split is on -s/--sample_id_var.', default=False)
+             help='Manually split data into training and test sets. When set, the split is on -s/--sample_id_var. Default is False.',
+             default=False)
 add_arg('-t', '--holdout_samples', nargs='+', type=str, default=[],
-        help='str. Sample IDs selected as holdout test group when --man_split was set')
+        help='str. Sample IDs selected as holdout test group when --man_split was set. Default is None.')
 add_arg('-p', '--training_percentage', type=float, default=0.8,
-        help='num, range: 0~1. Split percentage for training set when --no-man_split is set')
-add_arg('-r', '--random_state', type=int, default=1, help='int. Random state')
+        help='num, range: 0~1. Split percentage for training set when --no-man_split is set. Default is 0.8.')
+add_arg('-r', '--random_state', type=int, default=1, help='int. Random state.')
 
 add_arg('-m', '--model_type', type=str, choices=['regression', 'classification'],
-        default='classifciation', help='str. Model type. Options: \'regression\' and \'classification\'')
+        default='classifciation',
+        help='str. Model type. Options: \'regression\' and \'classification\'. Default is  \'regression\'.')
 add_arg('-l', '--lstm_type', type=str, choices=['simple', 'bidirectional'],
         default='simple',
-        help='str. LSTM model type. \'simple\' also contains stacked strcuture.')
+        help='str. LSTM model type. \'simple\' also contains stacked strcuture. Default is \'simple\'.')
 add_arg('-ns', '--n_stack', type=int, default=1,
-        help='int. Number of LSTM stacks. 1 means no stack.')
+        help='int. Number of LSTM stacks. 1 means no stack. Default is 1 (no stack).')
 add_arg('-e', '--epochs', type=int, default=500,
-        help='int. Number of epochs for LSTM modelling')
+        help='int. Number of epochs for LSTM modelling. Default is 500. ')
 add_arg('-b', '--batch_size', type=int, default=32,
-        help='int. The batch size for LSTM modeling')
+        help='int. The batch size for LSTM modeling. Default is 32. ')
 add_arg('-d', '--dense_activation', type=str, choices=['relu', 'linear', 'sigmoid', 'softmax'],
-        default='linear', help='str. Acivitation function for the dense layer of the LSTM model.')
+        default='linear', help='str. Acivitation function for the dense layer of the LSTM model. Default is \'linear\'')
 add_arg('-c', '--loss', type=str,
         choices=['mean_squared_error', 'binary_crossentropy',
                  'categorical_crossentropy', 'sparse_categorical_crossentropy', 'hinge'],
-        default='mean_squared_error', help='str. Loss function for LSTM models.')
+        default='mean_squared_error',
+        help='str. Loss function for LSTM models. Default is \'mean_squared_error\'.')
 add_arg('-u', '--hidden_units', type=int, default=50,
-        help='int. Number of hidden unit for the LSTM network')
+        help='int. Number of hidden unit for the LSTM network. Default is 50.')
 add_arg('-x', '--dropout_rate', type=float, default=0.0,
-        help='float, 0.0~1.0. Dropout rate for LSTM models . 0.0 means no dropout.')
+        help='float, 0.0~1.0. Dropout rate for LSTM models . 0.0 means no dropout. Default is 0.0.')
 add_arg('-g', '--optimizer', type=str,
-        choices=['adam', 'sgd'], default='adam', help='str. Model optimizer.')
+        choices=['adam', 'sgd'], default='adam', help='str. Model optimizer. Default is \'adam\'.')
 add_arg('-lr', '--learning_rate', type=float, default=0.001,
-        help='foalt. Learning rate for the optimizer. Note: use 0.01 for sgd.')
+        help='foalt. Learning rate for the optimizer. Note: use 0.01 for sgd. Default is 0.001.')
 add_bool_arg(parser=parser, name='stateful', input_type='flag', default=False,
-             help="Use stateful LSTM for modelling.")
+             help="Use stateful LSTM for modelling. Default is False.")
 
 add_arg('-o', '--output_dir', type=str,
-        default='.', help='str. Output directory. NOTE: not an absolute path, only relative to working directory -w/--working_dir')
+        default='.',
+        help='str. Output directory. NOTE: not an absolute path, only relative to working directory -w/--working_dir.')
 
 add_bool_arg(parser=parser, name='verbose', input_type='flag', default=False,
-             help='Verbose or not')
-
+             help='Verbose or not. Default is False.')
 
 add_bool_arg(parser=parser, name='plot', input_type='flag',
              help='Explort a scatter plot', default=False)
@@ -261,7 +269,7 @@ class DataLoader(object):
 
     # Details
         This class is designed to load the data and set up data for training LSTM models.
-        This class uses the custom error() function. So be sure to load it. 
+        This class uses the custom error() function. So be sure to load it.
 
     # Methods
         __init__: load data and other information from argparser, as well as class label encoding for classification study
@@ -296,7 +304,7 @@ class DataLoader(object):
         # Public class attributes
             Below are attributes read from arguments
                 self.cwd
-                self.model_type 
+                self.model_type
                 self.file
                 self.outcome_var
                 self.annotation_vars
@@ -310,13 +318,13 @@ class DataLoader(object):
             self.filename: str. input file name without extension
             self.raw: pandas dataframe. input data
             self.complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe, INDCLUDING outcome varaible
-            self.n_features: int. number of features    
+            self.n_features: int. number of features
             self.le: sklearn LabelEncoder for classification study
-            self.label_mapping: dict. Class label mapping codes, when model_type='classification'  
+            self.label_mapping: dict. Class label mapping codes, when model_type='classification'
 
         # Private class attributes (excluding class properties)
             self._basename: str. complete file name (with extension), no path
-            self._n_annot_col: int. number of annotation columns 
+            self._n_annot_col: int. number of annotation columns
         """
         # setup working director
         self.cwd = cwd
@@ -393,7 +401,7 @@ class DataLoader(object):
         Private attributes for the property
             _m_data: dict. output dictionary
             _training: pandas dataframe. data for model training.
-            _test: pandas dataframe. holdout test data. Only available without the "--cv_only" flag    
+            _test: pandas dataframe. holdout test data. Only available without the "--cv_only" flag
         """
         # print("called setter") # for debugging
         if self.cv_only:  # only training is stored
@@ -603,12 +611,19 @@ class lstmModel(object):
         # Purpose
             Evalutate model performance with new data
 
+        # Public class attributes
+            self.yhat: predicted values.
+            self.yhat_inversed: for regression study, inversed outcome to original scale if raw outcome is min-max scaled
+            self.newY_inversed: for regression study, inversed input Y to original scale if the input is min-max scaled
+            self.loss: float. set by self.loss, e.g. 'mse' for regression models. 
+            self.rmse: float. 
+            self.accuracy: float. None when model_type='regression'.
+
         # Arguments
             newX: numpy ndarray for new data X. shape requirment: n_samples x n_timepoints x n_features
             newY: numpy ndarray for new data Y. shape requirement: n_samples
         """
         # evaluate
-
         self.yhat = self.m.predict(newX)
         if self.model_type == 'regression':
             if y_scaler:
@@ -616,14 +631,15 @@ class lstmModel(object):
                 self.newY_inversed = y_scaler.inverse_transform(newY)
                 self._mse = mean_squared_error(
                     y_true=self.newY_inversed, y_pred=self.yhat_inversed)
+                self.loss = self._mse
             else:
-                self._mse = self.m.evaluate(newX, newY, verbose=False)[
-                    1]  # eval output (list): [loss, mse, accu]
+                # eval output (list): [loss, mse, accu]
+                self.loss, self._mse, _ = self.m.evaluate(
+                    newX, newY, verbose=False)
             self.accuracy = None
         else:  # below: need to debug
-            self._mse, self.accuracy = self.m.evaluate(
-                newX, newY, verbose=True)
-
+            self.loss, self._mse, self.accuracy = self.m.evaluate(
+                newX, newY, verbose=False)
         self.rmse = math.sqrt(self._mse)
 
 
@@ -644,7 +660,7 @@ class cvTraining(object):
     """
 
     def __init__(self, training, n_timepints, n_features,
-                 model_type, lstm_type,
+                 model_type, y_scale, lstm_type,
                  cv_type, cv_fold, n_monte, monte_test_rate,
                  outcome_var, annotation_vars,
                  random_state, verbose):
@@ -654,6 +670,7 @@ class cvTraining(object):
             n_timepints: int. number of timepoints. "args.n_timepoints" from argparser, or DataLoader.n_timepoints attribute
             n_features: int. number of features per timepoint. could be from DataLoader.n_features attribute
             model_type: str. model type, "classification" or "regression". "args.model_type" from argparser, or DataLoader.model_type attribute
+            y_scale: bool. if to min-max scale outcome when model_type='regression'.
             lstm_type: str. lstm type. "args.lstm_type" from argparser
             cv_type: str. cross validation type. "args.cv_type" from argparser
             cv_fold: int. number of fold when cv_type="LOO" or "kfold". "args.cv_fold" from argparser
@@ -670,6 +687,7 @@ class cvTraining(object):
             Below are private attribute(s) read from arguments
                 self.cv_type
                 self.lstm_type
+                self.y_scale
 
             self.n_iter: int. number of cv iterations according to cv_type
 
@@ -690,6 +708,7 @@ class cvTraining(object):
         self.training = training
         self.cv_type = cv_type
         self.lstm_type = lstm_type
+        self.y_scale = y_scale
 
         if self.cv_type == 'kfold':
             self.n_iter = cv_fold
@@ -826,7 +845,7 @@ class cvTraining(object):
 
         # set up data
         self.cv_m_ensemble, self.cv_m_history_ensemble = list(), list()
-        self.cv_test_accuracy_ensemble, self.cv_test_rmse_ensemble = list(), list()
+        self.cv_test_loss_ensemble, self.cv_test_accuracy_ensemble, self.cv_test_rmse_ensemble = list(), list(), list()
         for i in range(self.n_iter):
             iter_id = str(i+1)
             if self._verbose:
@@ -843,12 +862,12 @@ class cvTraining(object):
                 self._cv_test[self._cv_test.columns[~self._cv_test.columns.isin(self._complete_annot_vars)]])
 
             # process outcome variable
-            if self._model_type == 'regression':
+            if self._model_type == 'regression' and self.y_scale:
                 self._cv_train_scaler_Y = MinMaxScaler(feature_range=(0, 1))
                 self._cv_training[self._cv_training.columns[self._cv_training.columns.isin(self._y_var)]] = self._cv_train_scaler_Y.fit_transform(
                     self._cv_training[self._cv_training.columns[self._cv_training.columns.isin(self._y_var)]])
-                self._cv_test[self._cv_test.columns[self._cv_test.columns.isin(self._y_var)]] = self._cv_train_scaler_Y.fit_transform(
-                    self._cv_test[self._cv_test.columns[self._cv_test.columns.isin(self._y_var)]])
+                self._cv_test[self._cv_test.columns[self._cv_test.columns.isin(self._y_var)]] = self._cv_train_scaler_Y.transform(
+                    self._cv_test[self._cv_test.columns[self._cv_test.columns.isin(self._y_var)]])  # DO NOT use fit_transform here
 
             # convert data to np arrays
             self._cv_train_x, self._cv_train_y = longitudinal_cv_xy_array(input=self._cv_training, Y_colnames=self._y_var,
@@ -869,7 +888,12 @@ class cvTraining(object):
 
             cv_lstm.lstm_fit(trainX=self._cv_train_x, trainY=self._cv_train_y,
                              testX=self._cv_test_x, testY=self._cv_test_y, log_dir=os.path.join(self._tfborad_dir, 'cv_iter_'+iter_id))
-            cv_lstm.lstm_eval(newX=self._cv_test_x, newY=self._cv_test_y)
+
+            if self._model_type == 'regression' and self.y_scale:
+                cv_lstm.lstm_eval(
+                    newX=self._cv_test_x, newY=self._cv_test_y, y_scaler=self._cv_train_scaler_Y)
+            else:
+                cv_lstm.lstm_eval(newX=self._cv_test_x, newY=self._cv_test_y)
 
             # saving and exporting
             cv_lstm.m.save(os.path.join(
@@ -878,10 +902,108 @@ class cvTraining(object):
             self.cv_m_history_ensemble.append(cv_lstm.m_history)
             self.cv_test_accuracy_ensemble.append(cv_lstm.accuracy)
             self.cv_test_rmse_ensemble.append(cv_lstm.rmse)
+            self.cv_test_loss_ensemble.append(cv_lstm.loss)
 
             # verbose
             if self._verbose:
                 print("done!")
+
+    def cvROC(self):
+        """
+        # Purpose
+            Generates ROC and AUC for the CV models, using cv_test data
+        """
+        if self._model_type != 'classification':
+            error('ROC-AUC only applies to classification models.')
+
+        # TBC
+        None
+
+
+class productionTraining(object):
+    """
+    # Purpose
+        To train final LSTM model for production
+
+    # Behaviours
+        This class uses entire data set to train
+
+    # Methods
+        __init__: load the CV configuration from arg parser
+        produnctionRun: run the final modelling process according to the LSTM type
+    """
+
+    def __init__(self, training, n_timepints, n_features,
+                 model_type, y_scale, lstm_type,
+                 outcome_var, annotation_vars,
+                 random_state, verbose):
+        """
+        # argument
+            training: pandas dataframe. input data: row is sample
+            n_timepints: int. number of timepoints. "args.n_timepoints" from argparser, or DataLoader.n_timepoints attribute
+            n_features: int. number of features per timepoint. could be from DataLoader.n_features attribute
+            model_type: str. model type, "classification" or "regression". "args.model_type" from argparser, or DataLoader.model_type attribute
+            y_scale: bool. if to min-max scale outcome when model_type='regression'.
+            lstm_type: str. lstm type. "args.lstm_type" from argparser
+            n_monte: int. number of Monte Carlo iteratins when cv_type="monte". "args.n_monte" from argparser
+            monte_test_rate: float, between 0 and 1. resampling percentage for test set when cv_type="monte"
+            outcome_var: str. variable nanme for outcome. Only one is accepted for this version. "args.outcome_var" from argparser, or DataLoader.outcome_var
+            annotation_vars: list of strings. Column names for the annotation variables in the input dataframe, EXCLUDING outcome variable.
+                "args.annotation_vars" from argparser, or DataLoader.annotation_vars attribute
+            random_state: int. random state. "args.random_state" from argparser, or DataLoader.rand attribute
+            verbose: bool. verbose. "args.verbose", or DataLoader.verbose
+
+
+        # Public class attributes
+            Below are private attribute(s) read from arguments
+                self.cv_type
+                self.lstm_type
+                self.y_scale
+
+            self.n_iter: int. number of cv iterations according to cv_type
+
+        # Private class attributes (excluding class property)
+            Below are private attribute(s) read from arguments
+                self._outcome_var
+                self._annoation_vars
+                self._n_timepoints
+                self._n_features
+                self._rand
+                self._model_type
+                self._verbose
+
+            self._y_var: single str list. name of the outcome variable
+            self._complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe, INDCLUDING outcome varaible.
+            self._verbose
+        """
+        self.training = training
+        self.lstm_type = lstm_type
+        self.y_scale = y_scale
+
+        self._n_timepoints = n_timepints
+        self._n_features = n_features
+        self._outcome_var = outcome_var
+        self._annotation_vars = annotation_vars  # list of strings
+        self._y_var = [self._outcome_var]
+        self._complete_annot_vars = self._annotation_vars + self._y_var
+
+        self._rand = random_state
+        self._model_type = model_type
+        self._verbose = verbose
+
+    def productionRun(self):
+        # TBC
+        None
+
+    def pruductionEval(self):
+        # TBC
+        None
+
+    def productionROC(self):
+        if self._model_type != 'classfication':
+            error('ROC-AUC only applies to classification models.')
+        # TBC
+        None
 
 
 # ------ local variables ------
@@ -907,11 +1029,12 @@ print('input file name: {}'.format(mydata.filename))
 print('number of timepoints in the input file: {}'.format(mydata.n_timepoints))
 print('number of features in the inpout file: {}'.format(mydata.n_features))
 
-
+# ------ cv ------
 mycv = cvTraining(training=mydata.modelling_data['training'],
                   n_timepints=mydata.n_timepoints, n_features=mydata.n_features,
+                  model_type=mydata.model_type, y_scale=args.y_scale,
                   lstm_type=args.lstm_type, cv_type=args.cv_type, cv_fold=args.cv_fold, n_monte=args.n_monte,
-                  monte_test_rate=args.monte_test_rate, model_type=mydata.model_type,
+                  monte_test_rate=args.monte_test_rate,
                   outcome_var=mydata.outcome_var, annotation_vars=mydata.annotation_vars, random_state=mydata.rand,
                   verbose=mydata.verbose)
 
@@ -922,34 +1045,6 @@ print('CV indices for test:\n{}'.format(mycv.cvSplitIdx['cv_test_idx']))
 print('\n\r')
 print('Working directory: {}'.format(cwd))
 
-# # below: single round lstm modelling test
-# mylstm = lstmModel(n_timepoints=mydata.n_timepoints,
-#                    model_type=mydata.model_type, n_features=mydata.n_features,
-#                    n_stack=args.n_stack, hidden_units=args.hidden_units, epochs=args.epochs,
-#                    batch_size=args.batch_size, stateful=args.stateful, dropout=args.dropout_rate,
-#                    dense_activation=args.dense_activation, loss=args.loss,
-#                    optimizer=args.optimizer, learning_rate=args.learning_rate, verbose=True)
-
-# train = mydata.modelling_data['training']
-# cv_training, cv_test = train.iloc[mycv.cvSplitIdx['cv_training_idx'][0],
-#                                   :].copy(), train.iloc[mycv.cvSplitIdx['cv_test_idx'][0], :].copy()
-# cv_train_x, cv_train_y = longitudinal_cv_xy_array(input=cv_training, Y_colnames=mydata.y_var,
-#                                                   remove_colnames=mydata.annotation_vars, n_features=mydata.n_features)
-# cv_test_x, cv_test_y = longitudinal_cv_xy_array(input=cv_test, Y_colnames=mydata.y_var,
-#                                                 remove_colnames=mydata.annotation_vars, n_features=mydata.n_features)
-
-# mylstm.simple_lstm_m()
-# mylstm.lstm_fit(trainX=cv_train_x, trainY=cv_train_y,
-#                 testX=cv_test_x, testY=cv_test_y)
-
-
-# mse = mylstm.m.evaluate(cv_test_x, cv_test_y)[1]
-
-# print(mse)
-
-# rmse = math.sqrt(mse)
-# print('rmse: {}'.format(rmse))
-
 mycv.cvRun(working_dir=cwd, output_dir=args.output_dir,
            n_timepoints=mydata.n_timepoints,
            n_stack=args.n_stack, hidden_units=args.hidden_units, epochs=args.epochs,
@@ -959,6 +1054,33 @@ mycv.cvRun(working_dir=cwd, output_dir=args.output_dir,
 
 for i in range(len(mycv.cv_test_rmse_ensemble)):
     print('iter: ', i+1, 'RMSE: {}'.format(mycv.cv_test_rmse_ensemble[i]))
+print('\n')
+for i in range(len(mycv.cv_test_rmse_ensemble)):
+    print('iter: ', i+1, 'loss: {}'.format(mycv.cv_test_loss_ensemble[i]))
+
+
+# ------ model for production ------
+# # below: single round lstm modelling test
+
+# mylstm = lstmModel(n_timepoints=mydata.n_timepoints,
+#                    model_type=mydata.model_type, n_features=mydata.n_features,
+#                    n_stack=args.n_stack, hidden_units=args.hidden_units, epochs=args.epochs,
+#                    batch_size=args.batch_size, stateful=args.stateful, dropout=args.dropout_rate,
+#                    dense_activation=args.dense_activation, loss=args.loss,
+#                    optimizer=args.optimizer, learning_rate=args.learning_rate, verbose=True)
+
+
+# train = mydata.raw
+# train_x, train_y = longitudinal_cv_xy_array(input=cv_training, Y_colnames=mydata.y_var,
+#                                                   remove_colnames=mydata.annotation_vars, n_features=mydata.n_features)
+# mylstm.simple_lstm_m()
+# mylstm.lstm_fit(trainX=cv_train_x, trainY=cv_train_y,
+#                 testX=cv_test_x, testY=cv_test_y)
+# eval_res = mylstm.m.evaluate(cv_test_x, cv_test_y)
+# print(eval_res)
+# rmse = math.sqrt(mse)
+# print('rmse: {}'.format(rmse))
+
 
 # ------ process/__main__ statement ------
 # ------ setup output folders ------

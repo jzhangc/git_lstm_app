@@ -96,7 +96,7 @@ for i in range(n_folds):
     cv_train_scaler_Y = MinMaxScaler(feature_range=(0, 1))
     cv_train[cv_train.columns[cv_train.columns.isin(['PCL'])]] = cv_train_scaler_Y.fit_transform(
         cv_train[cv_train.columns[cv_train.columns.isin(['PCL'])]])
-    cv_test[cv_test.columns[cv_test.columns.isin(['PCL'])]] = cv_train_scaler_Y.fit_transform(
+    cv_test[cv_test.columns[cv_test.columns.isin(['PCL'])]] = cv_train_scaler_Y.transform(
         cv_test[cv_test.columns[cv_test.columns.isin(['PCL'])]])
 
     # transform into numpy arrays
@@ -121,7 +121,7 @@ for i in range(n_folds):
                                                                                plot_title=None,
                                                                                xlabel=None,
                                                                                ylabel=None,
-                                                                               verbose=False)
+                                                                               verbose=True)
 
     cv_m.save(os.path.join(res_dir, 'cv_models',
                            'freq'+str(freq)+'_cv_'+'fold_'+str(i+1)+'.h5'))
@@ -130,10 +130,6 @@ for i in range(n_folds):
     cv_pred_ensemble.append(cv_pred)
     cv_test_rmse_ensemble.append(cv_m_test_rmse)
     cv_test_rsq_ensemble.append(cv_m_test_rsq)
-
-
-eval_res = cv_m.evaluate(cv_test_X, cv_test_Y)
-eval_res = math.sqrt(eval_res)
 
 
 # --- CV evaluation ---
