@@ -13,6 +13,7 @@ Current objectives:
 [ ] 10. Load and use the existing models
 [ ] 11. ROC-AUC for CV and production modelling classes for classification models
 [X] 12. Code cleanup, generalization and optimization
+[ ] 13. Package everthing up to make the app portable, docker?? 
 
 NOTE
 All the argparser inputs are loaded from method arguments, making the class more portable, i.e. not tied to
