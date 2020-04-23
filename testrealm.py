@@ -292,7 +292,7 @@ class DataLoader(object):
             outcome_var: str. variable nanme for outcome. Only one is accepted for this version. "args.outcome_var" from argparser
             annotation_vars: list of strings. Column names for the annotation variables in the input dataframe, EXCLUDING outcome variable.
                 "args.annotation_vars" from argparser
-            n_timepints: int. number of timepoints. "args.n_timepoints" from argparser
+            n_timepoints: int. number of timepoints. "args.n_timepoints" from argparser
             sample_id_var: str. variable used to identify samples. "args.sample_id_var" from argparser
             model_type: str. model type, classification or regression
             cv_only: bool. If to split data into training and holdout test sets. "args.cv_only" from argparser
@@ -309,7 +309,7 @@ class DataLoader(object):
                 self.file
                 self.outcome_var
                 self.annotation_vars
-                self.n_timepints
+                self.n_timepoints
                 self.cv_only
                 self.holdout_samples
                 self.training_percentage
@@ -565,25 +565,27 @@ class lstmModel(object):
                              'mse', 'accuracy'])
         self.m = self.bidir_m
 
-    def lstm_fit(self, trainX, trainY, testX, testY, log_dir=None):
+    def lstm_fit(self, trainX, trainY, optim_epochs=None, testX=None, testY=None, log_dir=None):
         """
         # Arguments
             trainX: numpy ndarray for training X. shape requirment: n_samples x n_timepoints x n_features
             trainY: numpy ndarray for training Y. shape requirement: n_samples
+            optim_epochs: int. optmimal number of epocs when no test data was provided
             testX: numpy ndarray for test X. shape requirment: n_samples x n_timepoints x n_features
             testY: numpy ndarray for test Y. shape requirement: n_samples
             log_dir: str. path to output tensorboard results. It is opitonal
 
         # Public class attributes
-            trainX: numpy ndarray for training X. shape requirment: n_samples x n_timepoints x n_features
-            trainY: numpy ndarray for training Y. shape requirement: n_samples
-            testX: numpy ndarray for test X. shape requirment: n_samples x n_timepoints x n_features
-            testY: numpy ndarray for test Y. shape requirement: n_samples
+            self.trainX: numpy ndarray for training X. shape requirment: n_samples x n_timepoints x n_features
+            self.trainY: numpy ndarray for training Y. shape requirement: n_samples            
+            self.testX: numpy ndarray for test X. shape requirment: n_samples x n_timepoints x n_features
+            self.testY: numpy ndarray for test Y. shape requirement: n_samples
+            self.optim_epochs
 
         # Private class attributes (excluding class property)
-            _earlystop_callback: early stop callback
-            _tfboard_callback: tensorboard callback
-            _callbacks: list. a list of callbacks for model fitting
+            self._earlystop_callback: early stop callback
+            self._tfboard_callback: tensorboard callback
+            self._callbacks: list. a list of callbacks for model fitting
         """
         # data
         self.trainX = trainX
@@ -591,21 +593,39 @@ class lstmModel(object):
         self.testX = testX
         self.testY = testY
 
-        # callbakcs
-        self._earlystop_callback = EarlyStopping(
-            monitor='val_loss', patience=5)
-        if log_dir:
-            self._tfboard_callback = TensorBoard(log_dir=log_dir)
-            self._callbacks = [
-                self._earlystop_callback, self._tfboard_callback]
-        else:
-            self._callbacks = [self._earlystop_callback]
+        # training
+        # below: use the epochs training from CV if no test data was provided for modelling
+        if any(elem is None for elem in [testX, testY]):
+            self.optim_epochs = optim_epochs
+            if self.optim_epochs is None:
+                error('Provide epochs if no test data is provided.')
 
-        # fitting
-        self.m_history = self.m.fit(x=self.trainX, y=self.trainY, epochs=self.epochs,
-                                    batch_size=self.batch_size, callbacks=self._callbacks,
-                                    validation_data=(self.testX, self.testY),
-                                    verbose=self._verbose)
+            # fitting
+            self.m_history = self.m.fit(x=self.trainX, y=self.trainY, epochs=optim_epochs,
+                                        batch_size=self.batch_size,
+                                        verbose=self._verbose)
+        else:
+            # callbakcs
+            self._earlystop_callback = EarlyStopping(
+                monitor='val_loss', patience=5)
+            if log_dir:
+                self._tfboard_callback = TensorBoard(log_dir=log_dir)
+                self._callbacks = [
+                    self._earlystop_callback, self._tfboard_callback]
+            else:
+                self._callbacks = [self._earlystop_callback]
+
+            # fitting
+            self.m_history = self.m.fit(x=self.trainX, y=self.trainY, epochs=self.epochs,
+                                        batch_size=self.batch_size, callbacks=self._callbacks,
+                                        validation_data=(
+                                            self.testX, self.testY),
+                                        verbose=self._verbose)
+
+            # export early stop epoch
+            self.earlystopping_epochs = len(self.m_history['loss'])
+            # Below: 5 is patience in EarlyStopping()
+            self.bestparam_epochs = self.earlystopping_epochs - 5
 
     def lstm_eval(self, newX=None, newY=None, y_scaler=None):
         """
@@ -660,7 +680,7 @@ class cvTraining(object):
         cvSplitIdx: dict. Sample indices (row number) of training and test sets split for cross validation
     """
 
-    def __init__(self, training, n_timepints, n_features,
+    def __init__(self, training, n_timepoints, n_features,
                  model_type, y_scale, lstm_type,
                  cv_type, cv_fold, n_monte, monte_test_rate,
                  outcome_var, annotation_vars,
@@ -668,7 +688,7 @@ class cvTraining(object):
         """
         # argument
             training: pandas dataframe. input data: row is sample
-            n_timepints: int. number of timepoints. "args.n_timepoints" from argparser, or DataLoader.n_timepoints attribute
+            n_timepoints: int. number of timepoints. "args.n_timepoints" from argparser, or DataLoader.n_timepoints attribute
             n_features: int. number of features per timepoint. could be from DataLoader.n_features attribute
             model_type: str. model type, "classification" or "regression". "args.model_type" from argparser, or DataLoader.model_type attribute
             y_scale: bool. if to min-max scale outcome when model_type='regression'.
@@ -704,7 +724,6 @@ class cvTraining(object):
 
             self._y_var: single str list. name of the outcome variable
             self._complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe, INDCLUDING outcome varaible.
-            self._verbose
         """
         self.training = training
         self.cv_type = cv_type
@@ -719,7 +738,7 @@ class cvTraining(object):
             self.n_iter = n_monte
             self.monte_test_rate = monte_test_rate
 
-        self._n_timepoints = n_timepints
+        self._n_timepoints = n_timepoints
         self._n_features = n_features
         self._outcome_var = outcome_var
         self._annotation_vars = annotation_vars  # list of strings
@@ -797,16 +816,14 @@ class cvTraining(object):
         if self._verbose:
             print('done!')
 
-    def cvRun(self, working_dir, output_dir, *args, **kwargs):
+    def cvRun(self, res_dir, tfboard_dir, *args, **kwargs):
         """
         # Purpose
             Run the CV training modelling. This class is less portable, as it is tied to the lstmModel class.
 
         # Arguments
-            working_dir: str. working directory. "args.working_dir" from argparser, or DataLoader.cwd attribute
-            output_dir: str. output directory. "args.output_dir" from argparser
-
-            Below:
+            res_dir: str. output directory
+            tfboard_dir: str. output directory for tensforboard, usually a sub directory to res_dir
 
         # Public class attributes
             self.cv_m_ensemble
@@ -814,39 +831,26 @@ class cvTraining(object):
             self.cv_test_accuracy_ensemble
             self.cv_test_rmse_ensemble
 
+
         # Private class attributes (excluding class property)
             below: private attributes read from arguments
-                self._working_dir
-                self._output_dir
+                self._res_dir: str. working_dir + output_dir
+                sefl._tfboard_dir
 
-            self._res_dir: str. working_dir + output_dir
             self._cv_training: a fold of cv training data
             self._cv_test: a fold of cv test data
+            self._cv_train_scaler_X: sklearn StandardScaler object for X data standardization
+            self._cv_train_scaler_Y: sklearn MinMacScaler object for Y min-max scaling for regression models and when y_scale=True
 
         """
         # check and set up output path
-        if self._verbose:
-            print("Set up results directory...", end=' ')
-        self._wd = working_dir
-        self._output_dir = output_dir
-        self._res_dir = os.path.join(self._wd, self._output_dir)
-
-        if not os.path.exists(self._res_dir):  # set up out path
-            os.mkdir(self._res_dir)
-        else:
-            self._res_dir = self._res_dir + "_" + datetime.now().strftime("%Y%m%d-%H%M%S")
-            os.mkdir(self._res_dir)
-
-        self._tfborad_dir = os.path.join(
-            self._res_dir, 'tensorboard_res')  # set up tf board path
-        # below: no need to check as self._res_dir is new for sure
-        os.mkdir(self._tfborad_dir)
-        if self._verbose:
-            print('Done!')
+        self._res_dir = res_dir
+        self._tfboard_dir = tfboard_dir
 
         # set up data
         self.cv_m_ensemble, self.cv_m_history_ensemble = list(), list()
         self.cv_test_loss_ensemble, self.cv_test_accuracy_ensemble, self.cv_test_rmse_ensemble = list(), list(), list()
+        self.cv_earlystopped_epochs_ensemble, self.cv_bestparam_epochs_ensemble = list(), list()
         for i in range(self.n_iter):
             iter_id = str(i+1)
             if self._verbose:
@@ -888,7 +892,8 @@ class cvTraining(object):
                 cv_lstm.bidir_lstm_m()
 
             cv_lstm.lstm_fit(trainX=self._cv_train_x, trainY=self._cv_train_y,
-                             testX=self._cv_test_x, testY=self._cv_test_y, log_dir=os.path.join(self._tfborad_dir, 'cv_iter_'+iter_id))
+                             testX=self._cv_test_x, testY=self._cv_test_y,
+                             log_dir=os.path.join(self._tfboard_dir, 'cv_iter_'+iter_id))
 
             if self._model_type == 'regression' and self.y_scale:
                 cv_lstm.lstm_eval(
@@ -904,10 +909,24 @@ class cvTraining(object):
             self.cv_test_accuracy_ensemble.append(cv_lstm.accuracy)
             self.cv_test_rmse_ensemble.append(cv_lstm.rmse)
             self.cv_test_loss_ensemble.append(cv_lstm.loss)
+            self.cv_earlystopped_epochs_ensemble.append(
+                cv_lstm.earlystopping_epochs)
+            self.cv_bestparam_epochs_ensemble.append(cv_lstm.bestparam_epochs)
 
             # verbose
             if self._verbose:
                 print("done!")
+        self.cv_test_accuracy_mean = np.mean(self.cv_test_accuracy_ensemble)
+        self.cv_test_accuracy_sd = np.std(self.cv_test_accuracy_ensemble)
+        self.cv_test_rmse_mean = np.mean(self.cv_test_rmse_ensemble)
+        self.cv_test_rmse_sd = np.std(self.cv_test_rmse_ensemble)
+        self.cv_test_loss_mean = np.mean(self.cv_test_loss_ensemble)
+        self.cv_test_loss_sd = np.std(self.cv_test_loss_ensemble)
+
+        self.cv_earlystopped_epochs_mean = np.mean(
+            self.cv_earlystopped_epochs_ensemble)
+        self.cv_bestparam_epocs_mean = np.mean(
+            self.cv_bestparam_epochs_ensemble)
 
     def cvROC(self):
         """
@@ -921,27 +940,29 @@ class cvTraining(object):
         None
 
 
-class productionTraining(object):
+class lstmProduction(object):
     """
     # Purpose
-        To train final LSTM model for production
+        To train final LSTM model for production using the optimal epochs usually obtained from cross validation
 
     # Behaviours
-        This class uses entire data set to train
+        This class uses entire data set to train the final LSTM model for porudction,
+             and is therefore dependent on the modelling class, i.e. lstmModel.
+        This class trains and saves the production model in file: final_lstm_model.h5
 
     # Methods
         __init__: load the CV configuration from arg parser
-        produnctionRun: run the final modelling process according to the LSTM type
+        productionRun: run the final modelling process according to the LSTM type
     """
 
-    def __init__(self, training, n_timepints, n_features,
+    def __init__(self, training, n_timepoints, n_features,
                  model_type, y_scale, lstm_type,
                  outcome_var, annotation_vars,
                  random_state, verbose):
         """
-        # argument
+        # Arguments
             training: pandas dataframe. input data: row is sample
-            n_timepints: int. number of timepoints. "args.n_timepoints" from argparser, or DataLoader.n_timepoints attribute
+            n_timepoints: int. number of timepoints. "args.n_timepoints" from argparser, or DataLoader.n_timepoints attribute
             n_features: int. number of features per timepoint. could be from DataLoader.n_features attribute
             model_type: str. model type, "classification" or "regression". "args.model_type" from argparser, or DataLoader.model_type attribute
             y_scale: bool. if to min-max scale outcome when model_type='regression'.
@@ -954,17 +975,18 @@ class productionTraining(object):
             random_state: int. random state. "args.random_state" from argparser, or DataLoader.rand attribute
             verbose: bool. verbose. "args.verbose", or DataLoader.verbose
 
-
         # Public class attributes
             Below are private attribute(s) read from arguments
-                self.cv_type
-                self.lstm_type
-                self.y_scale
-
             self.n_iter: int. number of cv iterations according to cv_type
+
+        self.train_scaler_X: sklearn StandardScaler object for X data standardization
+        self.train_scaler_Y: sklearn MinMacScaler object for Y min-max scaling for regression models and when y_scale=True
 
         # Private class attributes (excluding class property)
             Below are private attribute(s) read from arguments
+                self._lstm_type       
+                self._training
+                self._y_scale
                 self._outcome_var
                 self._annoation_vars
                 self._n_timepoints
@@ -975,43 +997,100 @@ class productionTraining(object):
 
             self._y_var: single str list. name of the outcome variable
             self._complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe, INDCLUDING outcome varaible.
-            self._verbose
         """
-        self.training = training
-        self.lstm_type = lstm_type
-        self.y_scale = y_scale
-
-        self._n_timepoints = n_timepints
+        self._training = training
+        self._n_timepoints = n_timepoints
         self._n_features = n_features
         self._outcome_var = outcome_var
-        self._annotation_vars = annotation_vars  # list of strings
+        self._y_scale = y_scale
+        # Below: list of strings, EXCLUDING outcome variable
+        self._annotation_vars = annotation_vars
+        self._rand = random_state
+        self._model_type = model_type
+        self._lstm_type = lstm_type
+        self._verbose = verbose
+
         self._y_var = [self._outcome_var]
         self._complete_annot_vars = self._annotation_vars + self._y_var
 
-        self._rand = random_state
-        self._model_type = model_type
-        self._verbose = verbose
+        # produce data scalers and transform training data
+        # x standardization
+        self.train_scaler_X = StandardScaler()
+        self._training[self._training.columns[~self._training.columns.isin(self._complete_annot_vars)]] = self.train_scaler_X.fit_transform(
+            self._training[self._training.columns[~self._training.columns.isin(self._complete_annot_vars)]])
+        # process outcome variable
+        if self._model_type == 'regression' and self._y_scale:
+            self.train_scaler_Y = MinMaxScaler(feature_range=(0, 1))
+            self._training[self._training.columns[self._training.columns.isin(self._y_var)]] = self.train_scaler_Y.fit_transform(
+                self._training[self._training.columns[self._training.columns.isin(self._y_var)]])
 
-    def productionRun(self):
-        # TBC
-        None
+    def productionRun(self, res_dir, optim_epochs, *args, **kwargs):
+        """
+        # Purpose
+            Produce the final LTSM model
 
-    def pruductionEval(self):
-        # TBC
-        None
+        # Arguments
+            res_dir: str. output directory
+            optim_epochs: int. optimal epochs from cross-validation
 
-    def productionROC(self):
-        if self._model_type != 'classfication':
-            error('ROC-AUC only applies to classification models.')
-        # TBC
-        None
+        # Details
+            The class puts X (or Y if available) scalers public as the naive data will use those for scaling
+
+        # Private class attributes (excluding class property)
+            Below are private attribute(s) read from arguments
+                self._optim_epochs
+                self._res_dir
+
+        """
+        # load arguments
+        self._optim_epochs = optim_epochs
+        self._res_dir = res_dir
+
+        # convert data to np arrays
+        self._train_x, self._train_y = longitudinal_cv_xy_array(input=self._training, Y_colnames=self._y_var,
+                                                                remove_colnames=self._annotation_vars, n_features=self._n_features)
+
+        # modelling
+        final_lstm = lstmModel(model_type=self._model_type,
+                               n_features=self._n_features,
+                               *args, **kwargs)
+
+        if self._lstm_type == "simple":
+            final_lstm.simple_lstm_m()
+        else:  # stacked
+            final_lstm.bidir_lstm_m()
+
+        final_lstm.lstm_fit(trainX=self._train_x, trainY=self._train_y,
+                            optim_epochs=self._optim_epochs, log_dir=None)
+
+        final_lstm.m.save(os.path.join(
+            self._res_dir, 'final_lstm_model.h5'))
 
 
 # ------ local variables ------
+# set up working and output directories
 if args.working_dir:
     cwd = args.working_dir
 else:
     cwd = os.getcwd()
+
+# check and set up output path
+if args.verbose:
+    print("Set up results directory...", end=' ')
+output_dir = args.output_dir
+res_dir = os.path.join(cwd, output_dir)
+
+if not os.path.exists(res_dir):  # set up out path
+    os.mkdir(res_dir)
+else:
+    res_dir = res_dir + "_" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    os.mkdir(res_dir)
+
+tfborad_dir = os.path.join(res_dir, 'tensorboard_res')  # set up tf board path
+# below: no need to check as res_dir is new for sure
+os.mkdir(tfborad_dir)
+if args.verbose:
+    print('Done!')
 
 # ------ test ------
 # print(args)
@@ -1032,7 +1111,7 @@ print('number of features in the inpout file: {}'.format(mydata.n_features))
 
 # ------ cv ------
 mycv = cvTraining(training=mydata.modelling_data['training'],
-                  n_timepints=mydata.n_timepoints, n_features=mydata.n_features,
+                  n_timepoints=mydata.n_timepoints, n_features=mydata.n_features,
                   model_type=mydata.model_type, y_scale=args.y_scale,
                   lstm_type=args.lstm_type, cv_type=args.cv_type, cv_fold=args.cv_fold, n_monte=args.n_monte,
                   monte_test_rate=args.monte_test_rate,
@@ -1046,7 +1125,7 @@ print('CV indices for test:\n{}'.format(mycv.cvSplitIdx['cv_test_idx']))
 print('\n\r')
 print('Working directory: {}'.format(cwd))
 
-mycv.cvRun(working_dir=cwd, output_dir=args.output_dir,
+mycv.cvRun(res_dir=res_dir, tfboard_dir=tfborad_dir,
            n_timepoints=mydata.n_timepoints,
            n_stack=args.n_stack, hidden_units=args.hidden_units, epochs=args.epochs,
            batch_size=args.batch_size, stateful=args.stateful, dropout=args.dropout_rate,
@@ -1059,10 +1138,8 @@ print('\n')
 for i in range(len(mycv.cv_test_rmse_ensemble)):
     print('iter: ', i+1, 'loss: {}'.format(mycv.cv_test_loss_ensemble[i]))
 
-
-# ------ model for production ------
-# # below: single round lstm modelling test
-
+# ------ model evaluation when cv_only=True ------
+# below: single round lstm modelling
 # mylstm = lstmModel(n_timepoints=mydata.n_timepoints,
 #                    model_type=mydata.model_type, n_features=mydata.n_features,
 #                    n_stack=args.n_stack, hidden_units=args.hidden_units, epochs=args.epochs,
@@ -1071,16 +1148,18 @@ for i in range(len(mycv.cv_test_rmse_ensemble)):
 #                    optimizer=args.optimizer, learning_rate=args.learning_rate, verbose=True)
 
 
-# train = mydata.raw
-# train_x, train_y = longitudinal_cv_xy_array(input=cv_training, Y_colnames=mydata.y_var,
-#                                                   remove_colnames=mydata.annotation_vars, n_features=mydata.n_features)
-# mylstm.simple_lstm_m()
-# mylstm.lstm_fit(trainX=cv_train_x, trainY=cv_train_y,
-#                 testX=cv_test_x, testY=cv_test_y)
-# eval_res = mylstm.m.evaluate(cv_test_x, cv_test_y)
-# print(eval_res)
-# rmse = math.sqrt(mse)
-# print('rmse: {}'.format(rmse))
+# ------ model evaluation when cv_only=False ------
+# below: model ensemble testing
+
+# below: single production model testing
+myfinal_lstm = lstmProduction(training=mydata.modelling_data['training'], n_timepoints=mydata.n_timepoints, n_features=mydata.n_features,
+                              model_type=mydata.model_type, y_scale=args.y_scale, lstm_type=args.lstm_type, outcome_var=mydata.outcome_var,
+                              annotation_vars=mydata.annotation_vars, random_state=mydata.rand, verbose=mydata.verbose)
+# modelling
+myfinal_lstm.productionRun()
+
+# prepare test data
+test = mydata.modelling_data['test']
 
 
 # ------ process/__main__ statement ------
