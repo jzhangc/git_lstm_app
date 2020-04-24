@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 Current objectives:
-[x] 1. Test argparse
-[x] 2. Test output directory creation
+[X] 1. Test argparse
+[X] 2. Test output directory creation
 [X] 3. Test file reading
 [X] 4. Test file processing
 [X] 5. Test training
@@ -672,6 +672,12 @@ class lstmModel(object):
                 newX, newY, verbose=False)
         self.rmse = math.sqrt(self._mse)
 
+        # ROC for classification
+        if self.model_type == 'classification':
+            # TBC: ROC-AUC
+            # Make sure to also export ROC AUC data so custom ROC figure can be made
+            None
+
 
 class cvTraining(object):
     """
@@ -940,17 +946,6 @@ class cvTraining(object):
         self.cv_bestparam_epocs_mean = np.mean(
             self.cv_bestparam_epochs_ensemble)
 
-    # def cvROC(self):
-    #     """
-    #     # Purpose
-    #         Generates ROC and AUC for the CV models, using cv_test data
-    #     """
-    #     if self._model_type != 'classification':
-    #         error('ROC-AUC only applies to classification models.')
-
-    #     # TBC
-    #     None
-
 
 class lstmProduction(object):
     """
@@ -1065,19 +1060,20 @@ class lstmProduction(object):
                                                                 remove_colnames=self._annotation_vars, n_features=self._n_features)
 
         # modelling
-        final_lstm = lstmModel(model_type=self._model_type,
-                               n_features=self._n_features,
-                               *args, **kwargs)
+        self.final_lstm = lstmModel(model_type=self._model_type,
+                                    n_features=self._n_features,
+                                    epochs=self._optim_epochs,
+                                    *args, **kwargs)
 
         if self._lstm_type == "simple":
-            final_lstm.simple_lstm_m()
+            self.final_lstm.simple_lstm_m()
         else:  # stacked
-            final_lstm.bidir_lstm_m()
+            self.final_lstm.bidir_lstm_m()
 
-        final_lstm.lstm_fit(trainX=self._train_x, trainY=self._train_y,
-                            optim_epochs=self._optim_epochs, log_dir=None)
+        self.final_lstm.lstm_fit(trainX=self._train_x, trainY=self._train_y,
+                                 optim_epochs=self._optim_epochs, log_dir=None)
 
-        final_lstm.m.save(os.path.join(
+        self.final_lstm.m.save(os.path.join(
             self._res_dir, 'final_lstm_model.h5'))
 
     def productionEval(self, test):
@@ -1111,7 +1107,7 @@ class lstmProduction(object):
         # eval
         if self._model_type == 'regression' and self._y_scale:  # self._cv_test_x is already standardized
             self.final_lstm.lstm_eval(
-                newX=self._test_x, newY=self._test_y, y_scaler=self._cv_train_scaler_Y)
+                newX=self._test_x, newY=self._test_y, y_scaler=self.train_scaler_Y)
         else:
             self.final_lstm.lstm_eval(newX=self._test_x, newY=self._test_y)
 
@@ -1205,7 +1201,10 @@ myfinal_lstm = lstmProduction(training=mydata.modelling_data['training'], n_time
                               model_type=mydata.model_type, y_scale=args.y_scale, lstm_type=args.lstm_type, outcome_var=mydata.outcome_var,
                               annotation_vars=mydata.annotation_vars, random_state=mydata.rand, verbose=mydata.verbose)
 # modelling
-myfinal_lstm.productionRun(res_dir=res_dir, optim_epochs)
+myfinal_lstm.productionRun(res_dir=res_dir, optim_epochs=math.ceil(mycv.cv_bestparam_epocs_mean), n_timepoints=mydata.n_timepoints,
+                           n_stack=args.n_stack, hidden_units=args.hidden_units, batch_size=args.batch_size, stateful=args.stateful,
+                           dropout=args.dropout, dense_activation=args.dense_activation, loss=args.loss, optimizer=args.optimizer,
+                           learning_rate=args.learning_rate)
 
 # prepare test data
 test = mydata.modelling_data['test']
