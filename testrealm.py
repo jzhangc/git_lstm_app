@@ -268,12 +268,12 @@ class DataLoader(object):
     # Purpose
         Data loading class.
 
+    # Methods
+        __init__: load data and other information from argparser, as well as class label encoding for classification study
+
     # Details
         This class is designed to load the data and set up data for training LSTM models.
         This class uses the custom error() function. So be sure to load it.
-
-    # Methods
-        __init__: load data and other information from argparser, as well as class label encoding for classification study
 
     # Class property
         modelling_data: dict. data for model training. data is split if necessary.
@@ -430,6 +430,8 @@ class lstmModel(object):
 
     # Details
         This class uses the custom error() function. So be sure to load it.
+        It is recommended to use this class inside other classes as a dependency. 
+        Specifically, the lstm_eval() method only access numpy arrays and does not include new data scaling.
 
     # Methods
         __init__: load data and other information from DataLoader class and argparser
@@ -627,10 +629,17 @@ class lstmModel(object):
             # Below: 5 is patience in EarlyStopping()
             self.bestparam_epochs = self.earlystopping_epochs - 5
 
-    def lstm_eval(self, newX=None, newY=None, y_scaler=None):
+    def lstm_eval(self, newX, newY, y_scaler=None):
         """
         # Purpose
             Evalutate model performance with new data
+
+        # Arguments
+            newX: np.array. Input new data. Shape: n_samples, n_timepoints, n_features
+            newY: np.array. Input new data label. Shape: n_samples, n_output
+
+        # Details
+            Make sure to scale and transform newX (and newY if necessary) before running
 
         # Public class attributes
             self.yhat: predicted values.
@@ -690,16 +699,18 @@ class cvTraining(object):
             training: pandas dataframe. input data: row is sample
             n_timepoints: int. number of timepoints. "args.n_timepoints" from argparser, or DataLoader.n_timepoints attribute
             n_features: int. number of features per timepoint. could be from DataLoader.n_features attribute
-            model_type: str. model type, "classification" or "regression". "args.model_type" from argparser, or DataLoader.model_type attribute
+            model_type: str. model type, "classification" or "regression". "args.model_type" from argparser, 
+                or DataLoader.model_type attribute
             y_scale: bool. if to min-max scale outcome when model_type='regression'.
             lstm_type: str. lstm type. "args.lstm_type" from argparser
             cv_type: str. cross validation type. "args.cv_type" from argparser
             cv_fold: int. number of fold when cv_type="LOO" or "kfold". "args.cv_fold" from argparser
             n_monte: int. number of Monte Carlo iteratins when cv_type="monte". "args.n_monte" from argparser
             monte_test_rate: float, between 0 and 1. resampling percentage for test set when cv_type="monte"
-            outcome_var: str. variable nanme for outcome. Only one is accepted for this version. "args.outcome_var" from argparser, or DataLoader.outcome_var
-            annotation_vars: list of strings. Column names for the annotation variables in the input dataframe, EXCLUDING outcome variable.
-                "args.annotation_vars" from argparser, or DataLoader.annotation_vars attribute
+            outcome_var: str. variable nanme for outcome. Only one is accepted for this version. "args.outcome_var" from argparser, 
+                or DataLoader.outcome_var
+            annotation_vars: list of strings. Column names for the annotation variables in the input dataframe, 
+                EXCLUDING outcome variable. "args.annotation_vars" from argparser, or DataLoader.annotation_vars attribute
             random_state: int. random state. "args.random_state" from argparser, or DataLoader.rand attribute
             verbose: bool. verbose. "args.verbose", or DataLoader.verbose
 
@@ -723,7 +734,8 @@ class cvTraining(object):
                 self._verbose
 
             self._y_var: single str list. name of the outcome variable
-            self._complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe, INDCLUDING outcome varaible.
+            self._complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe, 
+                INDCLUDING outcome varaible.
         """
         self.training = training
         self.cv_type = cv_type
@@ -864,7 +876,7 @@ class cvTraining(object):
             self._cv_training[self._cv_training.columns[~self._cv_training.columns.isin(self._complete_annot_vars)]] = self._cv_train_scaler_X.fit_transform(
                 self._cv_training[self._cv_training.columns[~self._cv_training.columns.isin(self._complete_annot_vars)]])
             self._cv_test[self._cv_test.columns[~self._cv_test.columns.isin(self._complete_annot_vars)]] = self._cv_train_scaler_X.transform(
-                self._cv_test[self._cv_test.columns[~self._cv_test.columns.isin(self._complete_annot_vars)]])
+                self._cv_test[self._cv_test.columns[~self._cv_test.columns.isin(self._complete_annot_vars)]])  # DO NOT use fit_transform here
 
             # process outcome variable
             if self._model_type == 'regression' and self.y_scale:
@@ -895,7 +907,7 @@ class cvTraining(object):
                              testX=self._cv_test_x, testY=self._cv_test_y,
                              log_dir=os.path.join(self._tfboard_dir, 'cv_iter_'+iter_id))
 
-            if self._model_type == 'regression' and self.y_scale:
+            if self._model_type == 'regression' and self.y_scale:  # self._cv_test_x is already standardized
                 cv_lstm.lstm_eval(
                     newX=self._cv_test_x, newY=self._cv_test_y, y_scaler=self._cv_train_scaler_Y)
             else:
@@ -928,16 +940,16 @@ class cvTraining(object):
         self.cv_bestparam_epocs_mean = np.mean(
             self.cv_bestparam_epochs_ensemble)
 
-    def cvROC(self):
-        """
-        # Purpose
-            Generates ROC and AUC for the CV models, using cv_test data
-        """
-        if self._model_type != 'classification':
-            error('ROC-AUC only applies to classification models.')
+    # def cvROC(self):
+    #     """
+    #     # Purpose
+    #         Generates ROC and AUC for the CV models, using cv_test data
+    #     """
+    #     if self._model_type != 'classification':
+    #         error('ROC-AUC only applies to classification models.')
 
-        # TBC
-        None
+    #     # TBC
+    #     None
 
 
 class lstmProduction(object):
@@ -1034,6 +1046,8 @@ class lstmProduction(object):
             optim_epochs: int. optimal epochs from cross-validation
 
         # Details
+
+        # Details
             The class puts X (or Y if available) scalers public as the naive data will use those for scaling
 
         # Private class attributes (excluding class property)
@@ -1066,6 +1080,41 @@ class lstmProduction(object):
         final_lstm.m.save(os.path.join(
             self._res_dir, 'final_lstm_model.h5'))
 
+    def productionEval(self, test):
+        """
+        # Purpose
+            Test the perfomance on the single production model
+
+        # Arguments
+            test: pandas dataframe. Input new data. It should be the same format as the raw/training data
+
+        # Details
+            the test data should be the exact same format as the raw/training data, including the outcome and annotation columns. 
+            the method will use these same annotation and scaler attribues from self.__init__ to transform data
+
+        """
+        # load data
+        self._test = test
+
+        # x standardization: use the training data information
+        self._test[self._test.columns[~self._test.columns.isin(self._complete_annot_vars)]] = self.train_scaler_X.transform(
+            self._test[self._test.columns[~self._test.columns.isin(self._complete_annot_vars)]])
+        # process outcome variable: use the training data information
+        if self._model_type == 'regression' and self._y_scale:
+            self._test[self._test.columns[self._test.columns.isin(self._y_var)]] = self.train_scaler_Y.transform(
+                self._test[self._test.columns[self._test.columns.isin(self._y_var)]])
+
+        # set up np arrays
+        self._test_x, self._test_y = longitudinal_cv_xy_array(input=self._test, Y_colnames=self._y_var,
+                                                              remove_colnames=self._annotation_vars, n_features=self._n_features)
+
+        # eval
+        if self._model_type == 'regression' and self._y_scale:  # self._cv_test_x is already standardized
+            self.final_lstm.lstm_eval(
+                newX=self._test_x, newY=self._test_y, y_scaler=self._cv_train_scaler_Y)
+        else:
+            self.final_lstm.lstm_eval(newX=self._test_x, newY=self._test_y)
+
 
 # ------ local variables ------
 # set up working and output directories
@@ -1086,9 +1135,9 @@ else:
     res_dir = res_dir + "_" + datetime.now().strftime("%Y%m%d-%H%M%S")
     os.mkdir(res_dir)
 
-tfborad_dir = os.path.join(res_dir, 'tensorboard_res')  # set up tf board path
+tfboard_dir = os.path.join(res_dir, 'tensorboard_res')  # set up tf board path
 # below: no need to check as res_dir is new for sure
-os.mkdir(tfborad_dir)
+os.mkdir(tfboard_dir)
 if args.verbose:
     print('Done!')
 
@@ -1125,7 +1174,7 @@ print('CV indices for test:\n{}'.format(mycv.cvSplitIdx['cv_test_idx']))
 print('\n\r')
 print('Working directory: {}'.format(cwd))
 
-mycv.cvRun(res_dir=res_dir, tfboard_dir=tfborad_dir,
+mycv.cvRun(res_dir=res_dir, tfboard_dir=tfboard_dir,
            n_timepoints=mydata.n_timepoints,
            n_stack=args.n_stack, hidden_units=args.hidden_units, epochs=args.epochs,
            batch_size=args.batch_size, stateful=args.stateful, dropout=args.dropout_rate,
@@ -1156,7 +1205,7 @@ myfinal_lstm = lstmProduction(training=mydata.modelling_data['training'], n_time
                               model_type=mydata.model_type, y_scale=args.y_scale, lstm_type=args.lstm_type, outcome_var=mydata.outcome_var,
                               annotation_vars=mydata.annotation_vars, random_state=mydata.rand, verbose=mydata.verbose)
 # modelling
-myfinal_lstm.productionRun()
+myfinal_lstm.productionRun(res_dir=res_dir, optim_epochs)
 
 # prepare test data
 test = mydata.modelling_data['test']
