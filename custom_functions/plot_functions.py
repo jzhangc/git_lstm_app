@@ -92,7 +92,7 @@ def epochs_plot(filepath, model_history, plot_mode='loss', plot_title=None,
     if plot_mode == 'loss':  # RMSE
         plot_y = np.sqrt(np.array(model_history.history['loss']))
     else:
-        plot_y = np.array(model_history['acc'])
+        plot_y = np.array(model_history.history['acc'])
     plot_x = np.arange(1, len(plot_y) + 1)
 
     # plotting

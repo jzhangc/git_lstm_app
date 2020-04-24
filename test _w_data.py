@@ -1,26 +1,7 @@
-#!/usr/bin/env python3
 """
-Current objectives:
-[X] 1. Test argparse
-[X] 2. Test output directory creation
-[X] 3. Test file reading
-[X] 4. Test file processing
-[X] 5. Test training
-[X] 6. Folder setup
-[ ] 7. Save models and data
-[ ] 8. Diplay messages
-[X] 9. Test and debug for the classification module
-[ ] 10. Load and use the existing models
-[ ] 11. ROC-AUC for CV and production modelling classes for classification models
-[X] 12. Code cleanup, generalization and optimization
-[ ] 13. Package everthing up to make the app portable, docker?? 
-[X] 14. Multi-class classification support
-
-NOTE
-All the argparser inputs are loaded from method arguments, making the class more portable, i.e. not tied to
-the application.
-
+test with data
 """
+
 # ------ import modules ------
 import argparse
 import math
@@ -112,155 +93,9 @@ def warn(message, *lines):
     string = "\n{}WARNING: " + message + "{}\n" + "\n".join(lines) + "{}\n"
     print(string.format(colr.YELLOW_B, colr.YELLOW, colr.ENDC))
 
-
-def add_bool_arg(parser, name, help, input_type, default=False):
-    """
-    Purpose\n
-                    autmatically add a pair of mutually exclusive boolean arguments to the
-                    argparser
-
-    Arguments\n
-                    parser: a parser object
-                    name: str. the argument name
-                    help: str. the help message
-                    input_type: str. the value type for the argument
-                    default: the default value of the argument if not set
-    """
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--' + name, dest=name,
-                       action='store_true', help=input_type + '. ' + help)
-    group.add_argument('--no-' + name, dest=name,
-                       action='store_false', help=input_type + '. ''(Not to) ' + help)
-    parser.set_defaults(**{name: default})
-
-
-# ------ GLOBAL variables -------
-__version__ = '0.1.0'
-AUTHOR = 'Jing Zhang, PhD'
-DESCRIPITON = """
----------------------------------- Description ---------------------------------
-LSTM regression/classification modelling using multiple-timepoint MEG connectome.
-Currently, the program only accepts same feature size per timepoint.
---------------------------------------------------------------------------------
-"""
-
-# ------ augment definition ------
-# set the arguments
-parser = AppArgParser(description=DESCRIPITON,
-                      epilog='Written by: {}. Current version: {}\n\r'.format(
-                          AUTHOR, __version__),
-                      formatter_class=argparse.RawDescriptionHelpFormatter)
-
-add_arg = parser.add_argument
-add_arg('file', nargs=1, default=[],
-        help='Input CSV file. Currently only one file is accepable.')
-add_arg('-w', "--working_dir", type=str, default=None,
-        help='str. Working directory if not the current one. Default is None.')
-
-add_arg('-s', '--sample_id_var', type=str, default=None,
-        help='str. Vairable name for sample ID. NOTE: only needed with single file processing. Default is None.')
-add_arg('-a', '--annotation_vars', type=str, nargs="+", default=[],
-        help='list of str. names of the annotation columns in the input data, excluding the outcome variable. Default is [].')
-add_arg("-n", '--n_timepoints', type=int, default=None,
-        help='int. Number of timepoints. NOTE: only needed with single file processing. Default is None.')
-add_arg('-y', '--outcome_var', type=str, default=None,
-        help='str. Vairable name for outcome. NOTE: only needed with single file processing. Default is None.')
-add_bool_arg(parser=parser, name='y_scale', input_type='flag', default=False,
-             help='str. If to min-max scale outcome for regression study. Defatuls is False.')
-
-add_arg('-v', '--cv_type', type=str,
-        choices=['kfold', 'LOO', 'monte'], default='kfold',
-        help='str. Cross validation type. Default is \'kfold\'')
-add_arg('-kf', '--cv_fold', type=int, default=10,
-        help='int. Number of cross validation fold when --cv_type=\'kfold\'. Default is 10.')
-add_arg('-mn', '--n_monte', type=int, default=10,
-        help='int. Number of Monte Carlo cross validation iterations when --cv_type=\'monte\'. Default is 10')
-add_arg('-mt', '--monte_test_rate', type=float, default=0.2,
-        help='float. Ratio for cv test data split when --cv_type=\'monte\'. Default is 0.2.')
-add_bool_arg(parser=parser, name='cv_only', input_type='flag',
-             help='If to do cv_only mode for training, i.e. no holdout test split. Default is False.',
-             default=False)
-add_bool_arg(parser=parser, name='man_split', input_type='flag',
-             help='Manually split data into training and test sets. When set, the split is on -s/--sample_id_var. Default is False.',
-             default=False)
-add_arg('-t', '--holdout_samples', nargs='+', type=str, default=[],
-        help='str. Sample IDs selected as holdout test group when --man_split was set. Default is None.')
-add_arg('-p', '--training_percentage', type=float, default=0.8,
-        help='num, range: 0~1. Split percentage for training set when --no-man_split is set. Default is 0.8.')
-add_arg('-r', '--random_state', type=int, default=1, help='int. Random state.')
-
-add_arg('-m', '--model_type', type=str, choices=['regression', 'classification'],
-        default='classifciation',
-        help='str. Model type. Options: \'regression\' and \'classification\'. Default is  \'regression\'.')
-add_arg('-l', '--lstm_type', type=str, choices=['simple', 'bidirectional'],
-        default='simple',
-        help='str. LSTM model type. \'simple\' also contains stacked strcuture. Default is \'simple\'.')
-add_arg('-ns', '--n_stack', type=int, default=1,
-        help='int. Number of LSTM stacks. 1 means no stack. Default is 1 (no stack).')
-add_arg('-e', '--epochs', type=int, default=500,
-        help='int. Number of epochs for LSTM modelling. Default is 500. ')
-add_arg('-b', '--batch_size', type=int, default=32,
-        help='int. The batch size for LSTM modeling. Default is 32. ')
-add_arg('-d', '--dense_activation', type=str, choices=['relu', 'linear', 'sigmoid', 'softmax'],
-        default='linear', help='str. Acivitation function for the dense layer of the LSTM model. Default is \'linear\'')
-add_arg('-c', '--loss', type=str,
-        choices=['mean_squared_error', 'binary_crossentropy',
-                 'categorical_crossentropy', 'sparse_categorical_crossentropy', 'hinge'],
-        default='mean_squared_error',
-        help='str. Loss function for LSTM models. Default is \'mean_squared_error\'.')
-add_arg('-u', '--hidden_units', type=int, default=50,
-        help='int. Number of hidden unit for the LSTM network. Default is 50.')
-add_arg('-x', '--dropout_rate', type=float, default=0.0,
-        help='float, 0.0~1.0. Dropout rate for LSTM models . 0.0 means no dropout. Default is 0.0.')
-add_arg('-g', '--optimizer', type=str,
-        choices=['adam', 'sgd'], default='adam', help='str. Model optimizer. Default is \'adam\'.')
-add_arg('-lr', '--learning_rate', type=float, default=0.001,
-        help='foalt. Learning rate for the optimizer. Note: use 0.01 for sgd. Default is 0.001.')
-add_bool_arg(parser=parser, name='stateful', input_type='flag', default=False,
-             help="Use stateful LSTM for modelling. Default is False.")
-
-add_arg('-o', '--output_dir', type=str,
-        default='.',
-        help='str. Output directory. NOTE: not an absolute path, only relative to working directory -w/--working_dir.')
-
-add_bool_arg(parser=parser, name='verbose', input_type='flag', default=False,
-             help='Verbose or not. Default is False.')
-
-add_bool_arg(parser=parser, name='plot', input_type='flag',
-             help='Explort a scatter plot', default=False)
-add_arg('-j', '--plot-type', type=str,
-        choices=['scatter', 'bar'], default='scatter', help='str. Plot type')
-
-args = parser.parse_args()
-# check the arguments. did not use parser.error as error() has fancy colours
-if not args.sample_id_var:
-    error('-s/--sample_id_var missing.',
-          'Be sure to set the following: -s/--sample_id_var, -n/--n_timepoints, -y/--outcome_var, -a/--annotation_vars')
-if not args.n_timepoints:
-    error('-n/--n_timepoints flag missing.',
-          'Be sure to set the following: -s/--sample_id_var, -n/--n_timepoints, -y/--outcome_var, -a/--annotation_vars')
-if not args.outcome_var:
-    error('-y/--outcome_var flag missing.',
-          'Be sure to set the following: -s/--sample_id_var, -n/--n_timepoints, -y/--outcome_var, -a/--annotation_vars')
-if len(args.annotation_vars) < 1:
-    error('-a/--annotation_vars missing.',
-          'Be sure to set the following: -s/--sample_id_var, -n/--n_timepoints, -y/--outcome_var, -a/--annotation_vars')
-
-if args.man_split and len(args.holdout_samples) < 1:
-    error('Set -t/--holdout_samples when --man_split was set.')
-
-if args.dropout_rate < 0.0 or args.dropout_rate > 1.0:
-    error('-x/--dropout_rate should be between 0.0 and 1.0.')
-
-if args.n_stack < 1:
-    error('-ns/--n_stack should be equal to or greater than 1.')
-
-if args.cv_type == 'monte':
-    if args.monte_test_rate < 0.0 or args.monte_test_rate > 1.0:
-        error('-mt/--monte_test_rate should be between 0.0 and 1.0.')
-
-
 # ------ loacl classes ------
+
+
 class DataLoader(object):
     """
     # Purpose
@@ -1050,7 +885,7 @@ class lstmProduction(object):
 
         # Private class attributes (excluding class property)
             Below are private attribute(s) read from arguments
-                self._lstm_type       
+                self._lstm_type
                 self._training
                 self._y_scale
                 self._outcome_var
@@ -1148,7 +983,7 @@ class lstmProduction(object):
             test: pandas dataframe. Input new data. It should be the same format as the raw/training data
 
         # Details
-            the test data should be the exact same format as the raw/training data, including the outcome and annotation columns. 
+            the test data should be the exact same format as the raw/training data, including the outcome and annotation columns.
             the method will use these same annotation and scaler attribues from self.__init__ to transform data
 
         """
@@ -1177,15 +1012,13 @@ class lstmProduction(object):
 
 # ------ local variables ------
 # set up working and output directories
-if args.working_dir:
-    cwd = args.working_dir
-else:
-    cwd = os.getcwd()
+cwd = os.getcwd()
+verbose = True
 
 # check and set up output path
-if args.verbose:
+if verbose:
     print("Set up results directory...", end=' ')
-output_dir = args.output_dir
+output_dir = 'results/test_output'
 res_dir = os.path.join(cwd, output_dir)
 
 if not os.path.exists(res_dir):  # set up out path
@@ -1197,18 +1030,18 @@ else:
 tfboard_dir = os.path.join(res_dir, 'tensorboard_res')  # set up tf board path
 # below: no need to check as res_dir is new for sure
 os.mkdir(tfboard_dir)
-if args.verbose:
+if verbose:
     print('Done!')
 
 # ------ test ------
 # print(args)
 mydata = DataLoader(
-    cwd=cwd, file=args.file[0],
-    outcome_var=args.outcome_var, annotation_vars=args.annotation_vars,
-    sample_id_var=args.sample_id_var, n_timepoints=args.n_timepoints,
-    model_type=args.model_type, cv_only=args.cv_only,
-    man_split=args.man_split, holdout_samples=args.holdout_samples, training_percentage=args.training_percentage,
-    random_state=args.random_state, verbose=args.verbose)
+    cwd=cwd, file='data/v4/lstm_aec_phases_freq1_v4.csv',
+    outcome_var='group', annotation_vars=['subject', 'PCL'],
+    sample_id_var='subejct', n_timepoints=2,
+    model_type='classification', cv_only=False,
+    man_split=False, training_percentage=0.8,
+    random_state=1, holdout_samples=[], verbose=verbose)
 
 # print('\n')
 # print('input file path: {}'.format(mydata.file))
@@ -1217,12 +1050,40 @@ print('input file name: {}'.format(mydata.filename))
 print('number of timepoints in the input file: {}'.format(mydata.n_timepoints))
 print('number of features in the inpout file: {}'.format(mydata.n_features))
 
+
+# ------ model evaluation when cv_only=True ------
+# below: single round lstm modelling
+train_x, train_y = longitudinal_cv_xy_array(input=mydata.modelling_data['training'], Y_colnames=['group'],
+                                            remove_colnames=['subject', 'PCL'], n_features=mydata.n_features)
+test_x, test_y = longitudinal_cv_xy_array(input=mydata.modelling_data['test'], Y_colnames=['group'],
+                                          remove_colnames=['subject', 'PCL'], n_features=mydata.n_features)
+
+
+mylstm = lstmModel(trainX=train_x, trainY=train_y,
+                   testX=test_x, testY=test_y,
+                   n_timepoints=mydata.n_timepoints,
+                   model_type=mydata.model_type, n_features=mydata.n_features,
+                   n_stack=1, hidden_units=50, epochs=150,
+                   batch_size=26, stateful=False, dropout=0.2,
+                   dense_activation='sigmoid', loss='categorical_crossentropy',
+                   optimizer='sgd', learning_rate=0.01, verbose=True)
+
+mylstm.simple_lstm_m()
+mylstm.lstm_fit()
+mylstm.lstm_eval(newX=test_x, newY=test_y)
+
+mylstm.accuracy
+mylstm.rmse
+mylstm.loss
+mydata.le.inverse_transform(mylstm.yhat_out)
+mylstm.yhat_out
+
 # ------ cv ------
 mycv = cvTraining(training=mydata.modelling_data['training'],
                   n_timepoints=mydata.n_timepoints, n_features=mydata.n_features,
-                  model_type=mydata.model_type, y_scale=args.y_scale,
-                  lstm_type=args.lstm_type, cv_type=args.cv_type, cv_fold=args.cv_fold, n_monte=args.n_monte,
-                  monte_test_rate=args.monte_test_rate,
+                  model_type=mydata.model_type, y_scale=False,
+                  lstm_type='simple', cv_type='kfold', cv_fold=10, n_monte=10,
+                  monte_test_rate=0.2,
                   outcome_var=mydata.outcome_var, annotation_vars=mydata.annotation_vars, random_state=mydata.rand,
                   verbose=mydata.verbose)
 
@@ -1235,10 +1096,10 @@ print('Working directory: {}'.format(cwd))
 
 mycv.cvRun(res_dir=res_dir, tfboard_dir=tfboard_dir,
            n_timepoints=mydata.n_timepoints,
-           n_stack=args.n_stack, hidden_units=args.hidden_units, epochs=args.epochs,
-           batch_size=args.batch_size, stateful=args.stateful, dropout=args.dropout_rate,
-           dense_activation=args.dense_activation, loss=args.loss,
-           optimizer=args.optimizer, learning_rate=args.learning_rate, verbose=True)
+           n_stack=1, hidden_units=50, epochs=150,
+           batch_size=26, stateful=False, dropout=0.2,
+           dense_activation='sigmoid', loss='categorical_crossentropy',
+           optimizer='sgd', learning_rate=0.01, verbose=True)
 
 
 for i in range(len(mycv.cv_test_rmse_ensemble)):
@@ -1250,14 +1111,40 @@ print('\n')
 for i in range(len(mycv.cv_test_rmse_ensemble)):
     print('iter: ', i+1, 'loss: {}'.format(mycv.cv_test_loss_ensemble[i]))
 
-# ------ model evaluation when cv_only=True ------
-# below: single round lstm modelling
-# mylstm = lstmModel(n_timepoints=mydata.n_timepoints,
-#                    model_type=mydata.model_type, n_features=mydata.n_features,
-#                    n_stack=args.n_stack, hidden_units=args.hidden_units, epochs=args.epochs,
-#                    batch_size=args.batch_size, stateful=args.stateful, dropout=args.dropout_rate,
-#                    dense_activation=args.dense_activation, loss=args.loss,
-#                    optimizer=args.optimizer, learning_rate=args.learning_rate, verbose=True)
+
+# # below: single CV iteration
+# iter_id = str(i+1)
+
+# training = mydata.modelling_data['training']
+
+# # below: .copy for pd dataframe makes an explicit copy, avoiding Pandas SettingWithCopyWarning
+# cv_training, cv_test = training.iloc[mycv.cvSplitIdx['cv_training_idx'][i],
+#                                      :].copy(), training.iloc[mycv.cvSplitIdx['cv_test_idx'][i], :].copy()
+
+# # x standardization
+# cv_train_scaler_X = StandardScaler()
+# cv_training[cv_training.columns[~cv_training.columns.isin(mydata.complete_annot_vars)]] = cv_train_scaler_X.fit_transform(
+#     cv_training[cv_training.columns[~cv_training.columns.isin(mydata.complete_annot_vars)]])
+# cv_test[cv_test.columns[~cv_test.columns.isin(mydata.complete_annot_vars)]] = cv_train_scaler_X.transform(
+#     cv_test[cv_test.columns[~cv_test.columns.isin(mydata.complete_annot_vars)]])  # DO NOT use fit_transform here
+
+# # convert data to np arrays
+# cv_train_x, cv_train_y = longitudinal_cv_xy_array(input=cv_training, Y_colnames=mydata.y_var,
+#                                                   remove_colnames=mydata.annotation_vars, n_features=mydata.n_features)
+# cv_test_x, cv_test_y = longitudinal_cv_xy_array(input=cv_test, Y_colnames=mydata.y_var,
+#                                                 remove_colnames=mydata.annotation_vars, n_features=mydata.n_features)
+
+# # training
+# # below: make sure to have all the argumetns ready
+# cv_lstm = lstmModel(trainX=cv_train_x, trainY=cv_train_y,
+#                     testX=cv_test_x, testY=cv_test_y,
+#                     model_type=mydata.model_type,
+#                     n_features=mydata.n_features,
+#                     n_timepoints=mydata.n_timepoints,
+#                     n_stack=1, hidden_units=50, epochs=150,
+#                     batch_size=26, stateful=False, dropout=0.2,
+#                     dense_activation='sigmoid', loss='categorical_crossentropy',
+#                     optimizer='sgd', learning_rate=0.01, verbose=True)
 
 
 # # ------ model evaluation when cv_only=False ------

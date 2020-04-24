@@ -52,8 +52,7 @@ def lstm_ensemble_eval(testX, testY, models, model_index=None, outcome_type='reg
         subset = models
 
     # prediction
-    yhats = lstm_ensemble_predict(
-        models=subset, n_members=len(subset), testX=testX)
+    yhats = lstm_ensemble_predict(models=subset, testX=testX)
 
     # calculate acc or rmse
     if outcome_type == 'regression':
