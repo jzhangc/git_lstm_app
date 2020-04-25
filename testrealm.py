@@ -617,23 +617,21 @@ class lstmModel(object):
                              'mse', 'accuracy'])
         self.m = self.bidir_m
 
-    def lstm_fit(self, optim_epochs=None, log_dir=None):
+    def lstm_fit(self, tfboard_dir=None):
         """
         # Arguments
-            optim_epochs: int. optmimal number of epocs when no test data was provided
-            log_dir: str. path to output tensorboard results. It is opitonal
+            tfboard_dir: str. path to output tensorboard results. It is opitonal
 
         # Details
             Make sure to scale and transform trainX (and trainY if necessary for regression) before running
-            For classification, One Hot Encode is used. 
-            NOTE: for classification models, we DO NOT feed One Hot Encoded trainY and testY: the class will do it for us        
+            For classification, One Hot Encode is used.
+            NOTE: for classification models, we DO NOT feed One Hot Encoded trainY and testY: the class will do it for us
 
         # Public class attributes
             self.trainX: numpy ndarray for training X. shape requirment: n_samples x n_timepoints x n_features
             self.trainY: numpy ndarray for training Y. shape requirement: n_samples
             self.testX: numpy ndarray for test X. shape requirment: n_samples x n_timepoints x n_features
             self.testY: numpy ndarray for test Y. shape requirement: n_samples
-            self.optim_epochs
 
         # Private class attributes (excluding class property)
             self._earlystop_callback: early stop callback
@@ -643,20 +641,16 @@ class lstmModel(object):
         # training
         # below: use the epochs training from CV if no test data was provided for modelling
         if any(elem is None for elem in [self.testX, self.testY]):
-            self.optim_epochs = optim_epochs
-            if self.optim_epochs is None:
-                error('Provide epochs if no test data is provided.')
-
             # fitting
-            self.m_history = self.m.fit(x=self.trainX, y=self._trainY_working, epochs=optim_epochs,
+            self.m_history = self.m.fit(x=self.trainX, y=self._trainY_working, epochs=self.epochs,
                                         batch_size=self.batch_size,
                                         verbose=self._verbose)
         else:
             # callbakcs
             self._earlystop_callback = EarlyStopping(
                 monitor='val_loss', patience=5)
-            if log_dir:
-                self._tfboard_callback = TensorBoard(log_dir=log_dir)
+            if tfboard_dir:
+                self._tfboard_callback = TensorBoard(log_dir=tfboard_dir)
                 self._callbacks = [
                     self._earlystop_callback, self._tfboard_callback]
             else:
@@ -723,7 +717,8 @@ class lstmModel(object):
             self.accuracy = None
         else:  # classification
             self.yhat_out = np.argmax(self._yhat, axis=1)
-            self._newY_enc = to_categorical(newY)  # One Hot Encode
+            self._newY_enc = to_categorical(
+                newY, num_classes=self.dense_n_outpout)  # One Hot Encode
             self.loss, self._mse, self.accuracy = self.m.evaluate(
                 newX, self._newY_enc, verbose=False)
         self.rmse = math.sqrt(self._mse)
@@ -968,7 +963,7 @@ class cvTraining(object):
             else:  # stacked
                 cv_lstm.bidir_lstm_m()
 
-            cv_lstm.lstm_fit(log_dir=os.path.join(
+            cv_lstm.lstm_fit(tfboard_dir=os.path.join(
                 self._tfboard_dir, 'cv_iter_'+iter_id))
 
             if self._model_type == 'regression' and self.y_scale:  # self._cv_test_x is already standardized
@@ -1002,7 +997,7 @@ class cvTraining(object):
 
         self.cv_earlystopped_epochs_mean = np.mean(
             self.cv_earlystopped_epochs_ensemble)
-        self.cv_bestparam_epocs_mean = np.mean(
+        self.cv_bestparam_epochs_mean = np.mean(
             self.cv_bestparam_epochs_ensemble)
 
 
@@ -1024,10 +1019,10 @@ class lstmProduction(object):
     def __init__(self, training, n_timepoints, n_features,
                  model_type, y_scale, lstm_type,
                  outcome_var, annotation_vars,
-                 random_state, verbose):
+                 random_state, test=None, verbose=True):
         """
         # Arguments
-            training: pandas dataframe. input data: row is sample
+            training: pandas dataframe. input training data: row is sample
             n_timepoints: int. number of timepoints. "args.n_timepoints" from argparser, or DataLoader.n_timepoints attribute
             n_features: int. number of features per timepoint. could be from DataLoader.n_features attribute
             model_type: str. model type, "classification" or "regression". "args.model_type" from argparser, or DataLoader.model_type attribute
@@ -1039,6 +1034,7 @@ class lstmProduction(object):
             annotation_vars: list of strings. Column names for the annotation variables in the input dataframe, EXCLUDING outcome variable.
                 "args.annotation_vars" from argparser, or DataLoader.annotation_vars attribute
             random_state: int. random state. "args.random_state" from argparser, or DataLoader.rand attribute
+            test:(Optional) pandas dataframe. input test data: row is sample
             verbose: bool. verbose. "args.verbose", or DataLoader.verbose
 
         # Public class attributes
@@ -1050,7 +1046,7 @@ class lstmProduction(object):
 
         # Private class attributes (excluding class property)
             Below are private attribute(s) read from arguments
-                self._lstm_type       
+                self._lstm_type
                 self._training
                 self._y_scale
                 self._outcome_var
@@ -1061,10 +1057,12 @@ class lstmProduction(object):
                 self._model_type
                 self._verbose
 
+            self._train_x, self._trainy, (if avaiable, self._test_x, self._test_y): np.arrays for the data
             self._y_var: single str list. name of the outcome variable
             self._complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe, INDCLUDING outcome varaible.
         """
         self._training = training
+        self._test = test
         self._n_timepoints = n_timepoints
         self._n_features = n_features
         self._outcome_var = outcome_var
@@ -1079,7 +1077,7 @@ class lstmProduction(object):
         self._y_var = [self._outcome_var]
         self._complete_annot_vars = self._annotation_vars + self._y_var
 
-        # produce data scalers and transform training data
+        # produce data scalers and transform training or test data
         # x standardization
         self.train_scaler_X = StandardScaler()
         self._training[self._training.columns[~self._training.columns.isin(self._complete_annot_vars)]] = self.train_scaler_X.fit_transform(
@@ -1090,56 +1088,69 @@ class lstmProduction(object):
             self._training[self._training.columns[self._training.columns.isin(self._y_var)]] = self.train_scaler_Y.fit_transform(
                 self._training[self._training.columns[self._training.columns.isin(self._y_var)]])
 
-    def productionRun(self, res_dir, optim_epochs, *args, **kwargs):
+        # convert data to np arrays
+        self._train_x, self._train_y = longitudinal_cv_xy_array(input=self._training, Y_colnames=self._y_var,
+                                                                remove_colnames=self._annotation_vars, n_features=self._n_features)
+
+        if self._test is not None:
+            # x standardization: use the training data information
+            self._test[self._test.columns[~self._test.columns.isin(self._complete_annot_vars)]] = self.train_scaler_X.transform(
+                self._test[self._test.columns[~self._test.columns.isin(self._complete_annot_vars)]])
+            # process outcome variable: use the training data information
+            if self._model_type == 'regression' and self._y_scale:
+                self._test[self._test.columns[self._test.columns.isin(self._y_var)]] = self.train_scaler_Y.transform(
+                    self._test[self._test.columns[self._test.columns.isin(self._y_var)]])
+
+             # convert data to np arrays
+            self._test_x, self._test_y = longitudinal_cv_xy_array(input=self._test, Y_colnames=self._y_var,
+                                                                  remove_colnames=self._annotation_vars, n_features=self._n_features)
+
+    def productionRun(self, res_dir, *args, tfboard_dir, **kwargs):
         """
         # Purpose
             Produce the final LTSM model
 
         # Arguments
             res_dir: str. output directory
-            optim_epochs: int. optimal epochs from cross-validation
+            tfboard_dir: str. output directory for tensforboard, usually a sub directory to res_dir
 
         # Details
+            When no test data is provided, make sure to provide the opitimal epochs. 
+            For example, epochs=math.ceil(mycv.cv_bestparam_epochs_mean) from crosss validation class cvTraining
 
         # Details
             The class puts X (or Y if available) scalers public as the naive data will use those for scaling
 
         # Private class attributes (excluding class property)
             Below are private attribute(s) read from arguments
-                self._optim_epochs
                 self._res_dir
+                self._tfboard_dir
 
         """
         # load arguments
-        self._optim_epochs = optim_epochs
         self._res_dir = res_dir
-
-        # convert data to np arrays
-        self._train_x, self._train_y = longitudinal_cv_xy_array(input=self._training, Y_colnames=self._y_var,
-                                                                remove_colnames=self._annotation_vars, n_features=self._n_features)
-
-        # One Hot Encoding for classification
-        if self._model_type == 'classification':
-            self._train_y = to_categorical(self._train_y)
+        self._tfboard_dir = tfboard_dir
 
         # modelling
-        self.final_lstm = lstmModel(model_type=self._model_type,
-                                    n_features=self._n_features,
-                                    epochs=self._optim_epochs,
-                                    *args, **kwargs)
+        self.final_lstm = lstmModel(
+            trainX=self._train_x, trainY=self._train_y, model_type=self._model_type,
+            n_features=self._n_features,
+            *args, **kwargs)
 
         if self._lstm_type == "simple":
-            self.final_lstm.simple_lstm_m(n_output=self._train_y.shape[1])
+            self.final_lstm.simple_lstm_m()
         else:  # stacked
-            self.final_lstm.bidir_lstm_m(n_output=self._train_y.shape[1])
+            self.final_lstm.bidir_lstm_m()
 
-        self.final_lstm.lstm_fit(trainX=self._train_x, trainY=self._train_y,
-                                 optim_epochs=self._optim_epochs, log_dir=None)
+        if self._test is not None:
+            self.final_lstm.lstm_fit(tfboard_dir=self._tfboard_dir)
+        else:
+            self.final_lstm.lstm_fit(tfboard_dir=None)
 
         self.final_lstm.m.save(os.path.join(
             self._res_dir, 'final_lstm_model.h5'))
 
-    def productionEval(self, test):
+    def productionEval(self):
         """
         # Purpose
             Test the perfomance on the single production model
@@ -1148,25 +1159,10 @@ class lstmProduction(object):
             test: pandas dataframe. Input new data. It should be the same format as the raw/training data
 
         # Details
-            the test data should be the exact same format as the raw/training data, including the outcome and annotation columns. 
+            the test data should be the exact same format as the raw/training data, including the outcome and annotation columns.
             the method will use these same annotation and scaler attribues from self.__init__ to transform data
 
         """
-        # load data
-        self._test = test
-
-        # x standardization: use the training data information
-        self._test[self._test.columns[~self._test.columns.isin(self._complete_annot_vars)]] = self.train_scaler_X.transform(
-            self._test[self._test.columns[~self._test.columns.isin(self._complete_annot_vars)]])
-        # process outcome variable: use the training data information
-        if self._model_type == 'regression' and self._y_scale:
-            self._test[self._test.columns[self._test.columns.isin(self._y_var)]] = self.train_scaler_Y.transform(
-                self._test[self._test.columns[self._test.columns.isin(self._y_var)]])
-
-        # set up np arrays
-        self._test_x, self._test_y = longitudinal_cv_xy_array(input=self._test, Y_colnames=self._y_var,
-                                                              remove_colnames=self._annotation_vars, n_features=self._n_features)
-
         # eval
         if self._model_type == 'regression' and self._y_scale:  # self._cv_test_x is already standardized
             self.final_lstm.lstm_eval(
