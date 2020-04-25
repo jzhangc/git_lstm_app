@@ -477,10 +477,19 @@ class lstmModel(object):
         # below: use the epochs training from CV if no test data was provided for modelling
         if any(elem is None for elem in [self.testX, self.testY]):
             # fitting
+            if self._verbose:
+                print(
+                    "lstm_fit: Fitting with training data Early Stopping and TF board.")
+
+            self._earlystop_callback = EarlyStopping(
+                monitor='loss', patience=5)
             self.m_history = self.m.fit(x=self.trainX, y=self._trainY_working, epochs=self.epochs,
                                         batch_size=self.batch_size,
                                         verbose=self._verbose)
         else:
+            if self._verbose:
+                print(
+                    "lstm_fit: Fitting with test/validation data Early Stopping and TF board.")
             # callbakcs
             self._earlystop_callback = EarlyStopping(
                 monitor='val_loss', patience=5)
@@ -970,6 +979,7 @@ class lstmProduction(object):
         self.final_lstm = lstmModel(
             trainX=self._train_x, trainY=self._train_y, model_type=self._model_type,
             n_features=self._n_features,
+            testX=self._test_x,  testY=self._test_y,
             *args, **kwargs)
 
         if self._lstm_type == "simple":
@@ -978,7 +988,8 @@ class lstmProduction(object):
             self.final_lstm.bidir_lstm_m()
 
         if self._test is not None:
-            self.final_lstm.lstm_fit(tfboard_dir=self._tfboard_dir)
+            self.final_lstm.lstm_fit(tfboard_dir=os.path.join(
+                self._tfboard_dir, 'final_lstm_model'))
         else:
             self.final_lstm.lstm_fit(tfboard_dir=None)
 
@@ -1155,6 +1166,14 @@ myfinal_lstm = lstmProduction(training=mydata.modelling_data['training'],
                               model_type=mydata.model_type, y_scale=mycv.y_scale,
                               lstm_type=mycv.lstm_type, outcome_var=mydata.outcome_var,
                               annotation_vars=mydata.annotation_vars, random_state=mydata.rand, verbose=mydata.verbose)
+
+myfinal_lstm.productionRun(res_dir=res_dir, tfboard_dir=tfboard_dir,
+                           n_timepoints=mydata.n_timepoints,
+                           epochs=150,
+                           n_stack=1, hidden_units=50,
+                           batch_size=26, stateful=False, dropout=0.2,
+                           dense_activation='sigmoid', loss='categorical_crossentropy',
+                           optimizer='sgd', learning_rate=0.01, verbose=True)
 
 myfinal_lstm.productionRun(res_dir=res_dir, tfboard_dir=tfboard_dir,
                            epochs=math.ceil(mycv.cv_bestparam_epochs_mean),
