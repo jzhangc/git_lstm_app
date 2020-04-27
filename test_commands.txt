@@ -27,6 +27,6 @@ data/v4/lstm_aec_phases_freq1_v4.csv \
 -p 0.8 -r 1 \
 -m 'classification' -l 'simple' -x 0.1 \
 -g 'sgd' -lr 0.01 \
--u 50 -e 150 -b 26 -d 'sigmoid' -c 'binary_crossentropy' \
+-u 50 -e 150 -b 26 -d 'sigmoid' -c 'categorical_crossentropy' \
 -b 20 \
 -o ./results/test_output --verbose --cv_only

@@ -16,7 +16,7 @@ import tensorflow as tf
 from sklearn.model_selection import (KFold, LeaveOneOut, ShuffleSplit,
                                      StratifiedKFold, StratifiedShuffleSplit)
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, StandardScaler
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, roc_curve, roc_auc_score, auc
 
 from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from tensorflow.keras.layers import (LSTM, BatchNormalization, Bidirectional,
@@ -29,6 +29,7 @@ from custom_functions.cv_functions import (idx_func, longitudinal_cv_xy_array,
                                            lstm_cv_train, lstm_ensemble_eval,
                                            lstm_ensemble_predict)
 from custom_functions.data_processing import training_test_spliter_final
+from custom_functions.plot_functions import auc_plot
 
 # from tensorflow.keras.callbacks import History  # for input argument type check
 # from matplotlib import pyplot as plt
@@ -93,9 +94,8 @@ def warn(message, *lines):
     string = "\n{}WARNING: " + message + "{}\n" + "\n".join(lines) + "{}\n"
     print(string.format(colr.YELLOW_B, colr.YELLOW, colr.ENDC))
 
+
 # ------ loacl classes ------
-
-
 class DataLoader(object):
     """
     # Purpose
@@ -114,20 +114,22 @@ class DataLoader(object):
             returns a dict object with 'training' and 'test' items
     """
 
-    def __init__(self, cwd, file, outcome_var, annotation_vars, n_timepoints, sample_id_var,
-                 model_type,
+    def __init__(self, cwd, file,
+                 outcome_var, annotation_vars, n_timepoints, sample_id_var,
+                 model_type, n_classes,
                  cv_only,
                  man_split, holdout_samples, training_percentage, random_state, verbose):
         """
         # Arguments
             cwd: str. working directory
-            file: str. complete input file path. "args.file[0]" from argparser
+            file: str. complete input file path. "args.file[0]" from argparser]
             outcome_var: str. variable nanme for outcome. Only one is accepted for this version. "args.outcome_var" from argparser
             annotation_vars: list of strings. Column names for the annotation variables in the input dataframe, EXCLUDING outcome variable.
                 "args.annotation_vars" from argparser
             n_timepoints: int. number of timepoints. "args.n_timepoints" from argparser
             sample_id_var: str. variable used to identify samples. "args.sample_id_var" from argparser
             model_type: str. model type, classification or regression
+            n_classes: int. number of classes when model_type='classification'
             cv_only: bool. If to split data into training and holdout test sets. "args.cv_only" from argparser
             man_split: bool. If to use manual split or not. "args.man_split" from argparser
             holdout_samples: list of strings. sample IDs for holdout sample, when man_split=True. "args.holdout_samples" from argparser
@@ -139,6 +141,7 @@ class DataLoader(object):
             Below are attributes read from arguments
                 self.cwd
                 self.model_type
+                self.n_classes
                 self.file
                 self.outcome_var
                 self.annotation_vars
@@ -151,6 +154,7 @@ class DataLoader(object):
             self.y_var: single str list. variable nanme for outcome
             self.filename: str. input file name without extension
             self.raw: pandas dataframe. input data
+            self.raw_working: pands dataframe. working input data
             self.complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe, INDCLUDING outcome varaible
             self.n_features: int. number of features
             self.le: sklearn LabelEncoder for classification study
@@ -169,6 +173,7 @@ class DataLoader(object):
 
         # load files
         self.model_type = model_type
+        self.n_classes = n_classes
         # convert to a list for training_test_spliter_final() to use
         self.outcome_var = outcome_var
         self.annotation_vars = annotation_vars
@@ -191,11 +196,12 @@ class DataLoader(object):
                   'Please check.')
         else:
             self.raw = pd.read_csv(self.file, engine='python')
+            self.raw_working = self.raw.copy()  # value might be changed
             self.complete_annot_vars = self.annotation_vars + self.y_var
             self._n_annot_col = len(self.complete_annot_vars)
             self.n_timepoints = n_timepoints
             self.n_features = int(
-                (self.raw.shape[1] - self._n_annot_col) // self.n_timepoints)  # pd.shape[1]: ncol
+                (self.raw_working.shape[1] - self._n_annot_col) // self.n_timepoints)  # pd.shape[1]: ncol
 
             self.cv_only = cv_only
             self.sample_id_var = sample_id_var
@@ -207,9 +213,9 @@ class DataLoader(object):
 
         if self.model_type == 'classification':
             self.le = LabelEncoder()
-            self.le.fit(self.raw[self.outcome_var])
-            self.raw[self.outcome_var] = self.le.transform(
-                self.raw[self.outcome_var])
+            self.le.fit(self.raw_working[self.outcome_var])
+            self.raw_working[self.outcome_var] = self.le.transform(
+                self.raw_working[self.outcome_var])
             self.label_mapping = dict(
                 zip(self.le.classes_, self.le.transform(self.le.classes_)))
             if self.verbose:
@@ -239,12 +245,12 @@ class DataLoader(object):
         """
         # print("called setter") # for debugging
         if self.cv_only:  # only training is stored
-            self._training, self._test = self.raw, None
+            self._training, self._test = self.raw_working, None
         else:
             # training and holdout test data split
             if man_split:
                 # manual data split: the checks happen in the training_test_spliter_final() function
-                self._training, self._test, _, _ = training_test_spliter_final(data=self.raw, random_state=self.rand,
+                self._training, self._test, _, _ = training_test_spliter_final(data=self.raw_working, random_state=self.rand,
                                                                                man_split=man_split, man_split_colname=self.sample_id_var,
                                                                                man_split_testset_value=self.holdout_samples,
                                                                                x_standardization=False, y_min_max_scaling=False)
@@ -253,15 +259,15 @@ class DataLoader(object):
                     train_idx, test_idx = list(), list()
                     stf = StratifiedShuffleSplit(
                         n_splits=1, train_size=self.training_percentage, random_state=self.rand)
-                    for train_index, test_index in stf.split(self.raw, self.raw[self.y_var]):
+                    for train_index, test_index in stf.split(self.raw_working, self.raw_working[self.y_var]):
                         train_idx.append(train_index)
                         test_idx.append(test_index)
-                    self._training, self._test = self.raw.iloc[train_idx[0],
-                                                               :].copy(), self.raw.iloc[test_idx[0], :].copy()
+                    self._training, self._test = self.raw_working.iloc[train_idx[0],
+                                                                       :].copy(), self.raw_working.iloc[test_idx[0], :].copy()
                 else:  # regression
                     self._training, self._test, _, _ = training_test_spliter_final(
-                        data=self.raw, random_state=self.rand, man_split=man_split, training_percent=self.training_percentage,
-                        x_standardization=False, y_min_max_scaling=False)
+                        data=self.raw_working, random_state=self.rand, man_split=man_split, training_percent=self.training_percentage,
+                        x_standardization=False, y_min_max_scaling=False)  # data transformation will be doen during modeling
         self._modelling_data = {
             'training': self._training, 'test': self._test}
 
@@ -285,7 +291,8 @@ class lstmModel(object):
     """
 
     def __init__(self, trainX, trainY,
-                 model_type, n_timepoints, n_features,
+                 model_type, n_classes,
+                 n_timepoints, n_features,
                  n_stack, hidden_units, epochs, batch_size, stateful, dropout, dense_activation,
                  loss, optimizer, learning_rate, verbose, testX=None, testY=None):
         """
@@ -296,6 +303,7 @@ class lstmModel(object):
             trainX: numpy ndarray for training X. shape requirment: n_samples x n_timepoints x n_features
             trainY: numpy ndarray for training Y. shape requirement: n_samples
             model_type: str. model type, "classification" or "regression". "args.model_type" from argparser, or DataLoader.model_type
+            n_classes: int. number of classes when model_type='classification'   
             n_timepoints: int. number of timeopints (steps). "n_timepoint" from argparser, or DataLoader.n_timepoints
             n_features: int. number of features per timepoint. could be from the DataLoader class attribute DataLoader.n_features
             n_stack: int. number of (simple) LSTM stacks. "args.n_stack" from argparser
@@ -312,6 +320,10 @@ class lstmModel(object):
             testX: (optional) numpy ndarray for test X. shape requirment: n_samples x n_timepoints x n_features
             testY: (optional) numpy ndarray for test Y. shape requirement: n_samples
 
+        # Details
+            NOTE: trainX, trainY, testX and testY are NOT transformed in this class. Therefore, the data need to be 
+            transformed prior to running this class.
+
         # Public class attributes
             Below: attributes read from arguments
                 self.trainX
@@ -319,6 +331,7 @@ class lstmModel(object):
                 self.testX
                 self.testY
                 self.model_type
+                self.n_classes
                 self.n_timepoints
                 self.n_features
                 self.n_stack
@@ -347,6 +360,7 @@ class lstmModel(object):
 
         # set up model
         self.model_type = model_type
+        self.n_classes = n_classes
         self.n_timepoints = n_timepoints
         self.n_features = n_features
 
@@ -370,13 +384,16 @@ class lstmModel(object):
 
         # process data
         if self.model_type == 'classification':
-            # One Hot Encode for classification y lables only for training data
-            self._trainY_working = to_categorical(self.trainY)
-            if testY is None:
-                self._testY_working = self.testY
+            if self.n_classes > 2:
+                # One Hot Encode for classification y lables only for training data
+                self._trainY_working = to_categorical(self.trainY)
+                if testY is None:
+                    self._testY_working = self.testY
+                else:
+                    self._testY_working = to_categorical(
+                        self.testY, num_classes=self.n_classes)
             else:
-                self._testY_working = to_categorical(
-                    self.testY, num_classes=self._trainY_working.shape[1])
+                self._trainY_working, self._testY_working = self.trainY, self.testY
         else:
             self._trainY_working, self._testY_working = self.trainY, self.testY
 
@@ -400,15 +417,15 @@ class lstmModel(object):
         # model setup
         self.simple_m = Sequential()
         if self.n_stack > 1:  # if to use stacked LSTM or not
-            self.simple_m.add(LSTM(units=self.hidden_units, return_sequences=True,
-                                   batch_size=self.batch_size,
-                                   input_shape=(
-                                       self.n_timepoints, self.n_features),
-                                   stateful=self.stateful, dropout=self.dropout))
-            self.simple_m.add(BatchNormalization())
             for _ in range(self.n_stack):
-                self.simple_m.add(LSTM(units=self.hidden_units))
+                self.simple_m.add(LSTM(units=self.hidden_units, return_sequences=True,
+                                       batch_size=self.batch_size,
+                                       input_shape=(
+                                           self.n_timepoints, self.n_features),
+                                       stateful=self.stateful, dropout=self.dropout))
                 self.simple_m.add(BatchNormalization())
+            self.simple_m.add(LSTM(units=self.hidden_units))
+            self.simple_m.add(BatchNormalization())
         else:
             self.simple_m.add(LSTM(units=self.hidden_units,
                                    batch_size=self.batch_size,
@@ -543,9 +560,9 @@ class lstmModel(object):
             newY: numpy ndarray for new data Y. shape requirement: n_samples
         """
         # evaluate
-        self._yhat = self.m.predict(newX)
 
         if self.model_type == 'regression':
+            self._yhat = self.m.predict(newX)
             if y_scaler:
                 self._yhat_inversed = y_scaler.inverse_transform(self._yhat)
                 self._newY_inversed = y_scaler.inverse_transform(newY)
@@ -559,10 +576,19 @@ class lstmModel(object):
                     newX, newY, verbose=False)
                 self.yhat_out = self._yhat
             self.accuracy = None
+            self.yhat_out_prob = None
         else:  # classification
-            self.yhat_out = np.argmax(self._yhat, axis=1)
-            self._newY_enc = to_categorical(
-                newY, num_classes=self.dense_n_outpout)  # One Hot Encode
+            self._yhat = self.m.predict_classes(
+                newX, batch_size=self.batch_size)
+            self.yhat_out_prob = self.m.predict_proba(
+                newX, batch_size=self.batch_size)
+            if self.n_classes > 2:
+                self.yhat_out = np.argmax(self._yhat, axis=1)
+                self._newY_enc = to_categorical(
+                    newY, num_classes=self.n_classes)  # One Hot Encode
+            else:
+                self.yhat_out = self._yhat
+                self._newY_enc = newY
             self.loss, self._mse, self.accuracy = self.m.evaluate(
                 newX, self._newY_enc, verbose=False)
         self.rmse = math.sqrt(self._mse)
@@ -638,7 +664,7 @@ class cvTraining(object):
             self._complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe,
                 INDCLUDING outcome varaible.
         """
-        self.training = training
+        self.training = training.copy()
         self.cv_type = cv_type
         self.lstm_type = lstm_type
         self.y_scale = y_scale
@@ -673,14 +699,13 @@ class cvTraining(object):
     def cvSplitIdx(self, cv_type):
         """
         # Private class attributes for the property
-            _training: pandas dataframe. input training data. wit X and Y
-            _kfold: sklearn.KFold/sklearn.StratifiedKFold object if cv_type='kfold', according to the model type
-            _loo: sklearn.LeaveOneOut object if cv_type='LOO'
-            _monte: sklearn.ShuffleSplit/sklearn.StratifiedShuffleSplit object if cv_type='monte', according to the model type
-            _train_index: int array. sample (row) index for one cv training data fold
-            _test_index: int array. sample (row) index for one cv test data fold
-            _cv_training_idx: list of int array. sample (row) index for cv training data folds
-            _cv_test_idx: list of int array. sample (row) index for cv test data folds
+            self._kfold: sklearn.KFold/sklearn.StratifiedKFold object if cv_type='kfold', according to the model type
+            self._loo: sklearn.LeaveOneOut object if cv_type='LOO'
+            self._monte: sklearn.ShuffleSplit/sklearn.StratifiedShuffleSplit object if cv_type='monte', according to the model type
+            self._train_index: int array. sample (row) index for one cv training data fold
+            self._test_index: int array. sample (row) index for one cv test data fold
+            self._cv_training_idx: list of int array. sample (row) index for cv training data folds
+            self._cv_test_idx: list of int array. sample (row) index for cv test data folds
         """
         # spliting
         if self._verbose:
@@ -861,7 +886,8 @@ class lstmProduction(object):
     """
 
     def __init__(self, training, n_timepoints, n_features,
-                 model_type, y_scale, lstm_type,
+                 model_type, n_classes,
+                 y_scale, lstm_type,
                  outcome_var, annotation_vars,
                  random_state, test=None, verbose=True):
         """
@@ -870,7 +896,8 @@ class lstmProduction(object):
             n_timepoints: int. number of timepoints. "args.n_timepoints" from argparser, or DataLoader.n_timepoints attribute
             n_features: int. number of features per timepoint. could be from DataLoader.n_features attribute
             model_type: str. model type, "classification" or "regression". "args.model_type" from argparser, or DataLoader.model_type attribute
-            y_scale: bool. if to min-max scale outcome when model_type='regression'.
+            n_classes: int. number of classes when model_type='classification'  
+            y_scale: bool. if to min-max scale outcome when model_type='regression'
             lstm_type: str. lstm type. "args.lstm_type" from argparser
             n_monte: int. number of Monte Carlo iteratins when cv_type="monte". "args.n_monte" from argparser
             monte_test_rate: float, between 0 and 1. resampling percentage for test set when cv_type="monte"
@@ -899,14 +926,15 @@ class lstmProduction(object):
                 self._n_features
                 self._rand
                 self._model_type
+                self._n_classes
                 self._verbose
 
             self._train_x, self._trainy, (if avaiable, self._test_x, self._test_y): np.arrays for the data
             self._y_var: single str list. name of the outcome variable
             self._complete_annot_vars: list of strings. column names for the annotation variables in the input dataframe, INDCLUDING outcome varaible.
         """
-        self._training = training
-        self._test = test
+        self._training = training.copy()  # use copy() otherwise the original data will be replaced
+        self._test = test.copy()  # use copy() otherwise the original data will be replaced
         self._n_timepoints = n_timepoints
         self._n_features = n_features
         self._outcome_var = outcome_var
@@ -915,6 +943,7 @@ class lstmProduction(object):
         self._annotation_vars = annotation_vars
         self._rand = random_state
         self._model_type = model_type
+        self._n_classes = n_classes
         self._lstm_type = lstm_type
         self._verbose = verbose
 
@@ -977,7 +1006,8 @@ class lstmProduction(object):
 
         # modelling
         self.final_lstm = lstmModel(
-            trainX=self._train_x, trainY=self._train_y, model_type=self._model_type,
+            trainX=self._train_x, trainY=self._train_y,
+            model_type=self._model_type, n_classes=self._n_classes,
             n_features=self._n_features,
             testX=self._test_x,  testY=self._test_y,
             *args, **kwargs)
@@ -1000,9 +1030,6 @@ class lstmProduction(object):
         """
         # Purpose
             Test the perfomance on the single production model
-
-        # Arguments
-            test: pandas dataframe. Input new data. It should be the same format as the raw/training data
 
         # Details
             the test data should be the exact same format as the raw/training data, including the outcome and annotation columns.
@@ -1046,7 +1073,8 @@ mydata = DataLoader(
     cwd=cwd, file='data/v4/lstm_aec_phases_freq1_v4.csv',
     outcome_var='group', annotation_vars=['subject', 'PCL'],
     sample_id_var='subejct', n_timepoints=2,
-    model_type='classification', cv_only=False,
+    model_type='classification', n_classes=2,
+    cv_only=False,
     man_split=False, training_percentage=0.8,
     random_state=1, holdout_samples=[], verbose=verbose)
 
@@ -1056,7 +1084,6 @@ print('\n')
 print('input file name: {}'.format(mydata.filename))
 print('number of timepoints in the input file: {}'.format(mydata.n_timepoints))
 print('number of features in the inpout file: {}'.format(mydata.n_features))
-
 
 # ------ model evaluation when cv_only=True ------
 # below: single round lstm modelling
@@ -1069,10 +1096,11 @@ test_x, test_y = longitudinal_cv_xy_array(input=mydata.modelling_data['test'], Y
 mylstm = lstmModel(trainX=train_x, trainY=train_y,
                    testX=test_x, testY=test_y,
                    n_timepoints=mydata.n_timepoints,
-                   model_type=mydata.model_type, n_features=mydata.n_features,
-                   n_stack=1, hidden_units=50, epochs=150,
+                   model_type=mydata.model_type, n_classes=mydata.n_classes,
+                   n_features=mydata.n_features,
+                   n_stack=2, hidden_units=50, epochs=150,
                    batch_size=26, stateful=False, dropout=0.2,
-                   dense_activation='sigmoid', loss='categorical_crossentropy',
+                   dense_activation='sigmoid', loss='binary_crossentropy',
                    optimizer='sgd', learning_rate=0.01, verbose=True)
 
 mylstm.simple_lstm_m()
@@ -1105,7 +1133,8 @@ mycv.cvRun(res_dir=res_dir, tfboard_dir=tfboard_dir,
            n_timepoints=mydata.n_timepoints,
            n_stack=1, hidden_units=50, epochs=150,
            batch_size=26, stateful=False, dropout=0.2,
-           dense_activation='sigmoid', loss='categorical_crossentropy',
+           dense_activation='sigmoid', loss='binary_crossentropy',
+           n_classes=mydata.n_classes,
            optimizer='sgd', learning_rate=0.01, verbose=True)
 
 
@@ -1117,6 +1146,10 @@ for i in range(len(mycv.cv_test_rmse_ensemble)):
 print('\n')
 for i in range(len(mycv.cv_test_rmse_ensemble)):
     print('iter: ', i+1, 'loss: {}'.format(mycv.cv_test_loss_ensemble[i]))
+    print('\n')
+for i in range(len(mycv.cv_test_rmse_ensemble)):
+    print('iter: ', i+1,
+          'accuracy: {}'.format(mycv.cv_test_accuracy_ensemble[i]))
 
 
 # # below: single CV iteration
@@ -1163,28 +1196,35 @@ myfinal_lstm = lstmProduction(training=mydata.modelling_data['training'],
                               test=mydata.modelling_data['test'],
                               n_timepoints=mydata.n_timepoints,
                               n_features=mydata.n_features,
-                              model_type=mydata.model_type, y_scale=mycv.y_scale,
-                              lstm_type=mycv.lstm_type, outcome_var=mydata.outcome_var,
+                              model_type=mydata.model_type, y_scale=False,
+                              n_classes=mydata.n_classes,
+                              lstm_type='simple', outcome_var=mydata.outcome_var,
                               annotation_vars=mydata.annotation_vars, random_state=mydata.rand, verbose=mydata.verbose)
 
 myfinal_lstm.productionRun(res_dir=res_dir, tfboard_dir=tfboard_dir,
                            n_timepoints=mydata.n_timepoints,
-                           epochs=150,
-                           n_stack=1, hidden_units=50,
+                           epochs=900,
+                           n_stack=2, hidden_units=50,
                            batch_size=26, stateful=False, dropout=0.2,
-                           dense_activation='sigmoid', loss='categorical_crossentropy',
-                           optimizer='sgd', learning_rate=0.01, verbose=True)
-
-myfinal_lstm.productionRun(res_dir=res_dir, tfboard_dir=tfboard_dir,
-                           epochs=math.ceil(mycv.cv_bestparam_epochs_mean),
-                           n_timepoints=mydata.n_timepoints,
-                           n_stack=1, hidden_units=50,
-                           batch_size=26, stateful=False, dropout=0.2,
-                           dense_activation='sigmoid', loss='categorical_crossentropy',
+                           dense_activation='sigmoid', loss='binary_crossentropy',
                            optimizer='sgd', learning_rate=0.01, verbose=True)
 
 myfinal_lstm.productionEval()
 
+
+tst_prob = myfinal_lstm.final_lstm.yhat_out_prob
+
+myfinal_lstm.final_lstm.yhat_out
+
+fpr0, tpr0, thsh0 = roc_curve(myfinal_lstm._test_y, tst_prob)
+auc0 = auc(fpr0, tpr0)
+
+
+# fpr0, tpr0, thsh0 = roc_curve(myfinal_lstm._test_y, tst_prob[:, 0])
+# auc0 = auc(fpr0, tpr0)
+# fpr1, tpr1, thsh1 = roc_curve(myfinal_lstm._test_y, tst_prob[:, 1])
+# auc1 = auc(fpr1, tpr1)
+auc_plot(filepath=os.path.join(res_dir, 'test_auc.pdf'), fpr=fpr0, tpr=tpr0)
 
 # # ------ model evaluation when cv_only=False ------
 # # below: model ensemble testing

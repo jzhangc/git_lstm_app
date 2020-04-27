@@ -11,22 +11,31 @@ from sklearn.metrics import auc, roc_curve  # calculate ROC-AUC
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.callbacks import History  # for input argument type check
 
+
 # ------ functions ------
-
-
-def auc_plot(model, newdata_X, newdata_Y):  # AUC plot
-    test_Y_hat = model.predict(newdata_X).ravel()  # ravel() flattens the array
-    fpr, tpr, threshold = roc_curve(newdata_Y, test_Y_hat)
-    AUC = auc(fpr, tpr)
-
-    plt.figure(1)
-    plt.plot([0, 1], [0, 1], 'k--')
-    plt.plot(fpr, tpr, label='AUC = {:.3f}'.format(AUC))
-    plt.xlabel('1-Specificity')
-    plt.ylabel('Sensitivity')
-    plt.title('ROC curve')
-    plt.legend(loc='best')
-    plt.show()
+def auc_plot(filepath, fpr, tpr, figure_size=(9, 3), fontsize=10, legend_fontsize=8):  # AUC plot
+    auc_value = auc(fpr, tpr)
+    fig, ax = plt.subplots()
+    fig.set_facecolor('white')
+    ax.set_facecolor('white')
+    ax.plot(fpr, tpr, linestyle='-', color='black',
+            label='AUC0 = {:.3f}'.format(auc_value))
+    # ax.plot(fpr1, tpr1, linestyle='-', color='red',
+    #         label='AUC1 = {:.3f}'.format(auc1))
+    ax.plot([0, 1], [0, 1], 'k--')
+    ax.set_title('roc-auc', color='black')
+    ax.set_xlabel('1-specificity', fontsize=fontsize, color='black')
+    ax.set_ylabel('sensitivity', fontsize=fontsize, color='black')
+    ax.tick_params(labelsize=5, color='black', labelcolor='black')
+    leg = ax.legend(loc='upper center', bbox_to_anchor=(
+        0.5, -0.2), ncol=3, fontsize=legend_fontsize, facecolor='white')
+    for text in leg.get_texts():
+        text.set_color('black')
+        text.set_weight('bold')
+        text.set_alpha(0.5)
+    plt.setp(ax.spines.values(), color='black')
+    plt.savefig(filepath, dpi=600, bbox_inches='tight', facecolor='white')
+    fig
     return None
 
 
